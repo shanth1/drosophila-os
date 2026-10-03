@@ -1,4 +1,4 @@
-.PHONY: plugins run test check wasm-lab snn-lab
+.PHONY: plugins run test check wasm-lab snn-lab pipeline-lab
 
 plugins:
 	mkdir -p plugins/compiled
@@ -18,3 +18,6 @@ wasm-lab:
 
 snn-lab:
 	CGO_ENABLED=0 go test -mod=readonly -v -count=1 ./examples/snn
+
+pipeline-lab:
+	CGO_ENABLED=0 go test -mod=readonly -v -count=1 ./examples/pipeline
