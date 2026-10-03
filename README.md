@@ -2,16 +2,55 @@
 
 A console prototype of a spiking neural network (SNN) driven by an isolated
 WebAssembly sensor. This is not yet a monitoring service or a chaos-engineering
-tool. The current runnable slice is:
+tool. The default application demonstrates:
 
 ```text
-random WASM sensor -> host ABI -> input buffer -> SNN ticks -> console statistics
+fixed WASM signal -> host ABI -> two-neuron SNN -> output event
 ```
 
 ## Quick Start
 
-Requirements: Go 1.25.5 or newer, Make, and a binary connectome. No CGO or TinyGo
-is needed. Run commands from the repository root.
+Requirements: Go 1.25.5 or newer and Make. No CGO, TinyGo, dataset, or credentials
+are needed for the default demo. Run commands from the repository root:
+
+```sh
+make run
+```
+
+The application uses a fixed sensor sending `0.5` to neuron A, connected to
+output neuron B with weight `1`. Both thresholds are `1`; leak is disabled.
+It executes three sequential steps, 250 ms apart:
+
+| Tick | Sensor polled? | Voltage [A, B] | Pending [A, B] | Fired [A, B] |
+| --- | --- | --- | --- | --- |
+| 1 | Yes | `[0.5, 0]` | `[0, 0]` | `[false, false]` |
+| 2 | Yes | `[0, 0]` | `[0, 1]` | `[true, false]` |
+| 3 | No | `[0, 0]` | `[0, 0]` | `[false, true]` |
+
+On tick 3 the host logs `msg="output event" tick=3 neuron=1`. This is a test
+event, not an incident detector or WASM effector. Run more steps or repeat until
+Ctrl+C:
+
+```sh
+make run ARGS="-ticks 6"
+make run ARGS="-ticks 0"
+make check
+```
+
+The three-step sequence repeats, producing events on ticks 3, 6, 9, and so on.
+Sensor calls, engine ticks, and output observation share one sequential loop;
+the demo does not use the asynchronous sensor Manager. Read
+`cmd/drosophila/demo.go` and `plugins/src/sensor_fixed/main.go` to follow it.
+`examples/pipeline` remains an independent deterministic test of the same
+signal path, without the application's timer or embedded sensor.
+
+## Biological Graph Mode
+
+The previous large-graph experiment is still available explicitly:
+
+```sh
+make run ARGS="-mode brain -ticks 300"
+```
 
 The current local dataset is `data/male_cns.bin`. Data and generated WASM files
 are ignored by Git; a fresh checkout does not contain the dataset. If the CSV
@@ -25,11 +64,7 @@ The CSV can be obtained separately with `uv run download_brain.py` after setting
 `NEUPRINT_TOKEN` in `.env`. This requires network access and NeuPrint credentials;
 it is not necessary when the binary graph is already available.
 
-```sh
-make run
-```
-
-This rebuilds the sensor as a WASI reactor, embeds it in `bin/drosophila`, loads
+The brain-mode command rebuilds the sensors as WASI reactors, embeds them in `bin/drosophila`, loads
 the graph, and runs 300 biological ticks (nominally three seconds). Compilation
 and graph loading add startup time. Logs use the standard `slog` text format on
 stderr. Expect messages with these fields (timestamps omitted):
@@ -48,20 +83,20 @@ connectome. Values vary because the sensor is random. A zero instantaneous spike
 count does not imply a broken sensor. Voltage resets to zero when a neuron fires.
 With the current graph and default weights, activity can quickly saturate at
 roughly 160,000 firing neurons per tick. This is a limitation of the model and
-weight calibration, not evidence of useful monitoring behavior. The demo keeps
+weight calibration, not evidence of useful monitoring behavior. Brain mode keeps
 these parameters unchanged so startup repair and model tuning remain separate.
 
 Run until Ctrl+C, or choose another graph path:
 
 ```sh
-make run ARGS="-ticks 0"
-make run ARGS="-brain /absolute/path/male_cns.bin -ticks 100"
+make run ARGS="-mode brain -ticks 0"
+make run ARGS="-mode brain -brain /absolute/path/male_cns.bin -ticks 100"
 make check
 ```
 
 The random sensor targets neuron index `100`, so its graph needs at least 101
 neurons. This index is not a configured biological receptor or incident detector.
-Ctrl+C stops the host and its sensor. A sensor failure stops the demo with a
+Ctrl+C stops the host and its sensor. A sensor failure stops the application with a
 nonzero exit status rather than silently reporting success.
 Array indices follow the first appearance of biological IDs in the CSV; index
 `100` does not identify the same biological neuron across reordered exports.
@@ -70,33 +105,38 @@ Array indices follow the first appearance of biological IDs in the CSV; index
 
 ```sh
 make build
-./bin/drosophila -brain /absolute/path/male_cns.bin
+./bin/drosophila
+./bin/drosophila -mode brain -brain /absolute/path/male_cns.bin -ticks 300
 ./bin/drosophila -help
 make clean
 ```
 
-`make` defaults to `build`. `make build` first compiles the sensor into
-`plugins/compiled/sensor_random.wasm`, then embeds those bytes in the host binary
-at `bin/drosophila`. Both generated paths are ignored by Git. `make run` builds
+`make` defaults to `build`. `make build` first compiles the fixed and random
+sensors into `plugins/compiled/`, then embeds their bytes in the host binary
+at `bin/drosophila`. Generated paths are ignored by Git. `make run` builds
 and executes this binary, forwarding `ARGS` as command-line arguments.
-`make clean` removes only these two generated files, not source, data, or Go's
-build cache. WASM stays under `plugins/` because `go:embed` paths cannot use `../`.
+`make clean` removes only the host binary and two sensor files, not source, data,
+or Go's build cache. WASM stays under `plugins/` because `go:embed` paths cannot
+use `../`.
 
-The WASM sensor is embedded; the graph is still an external file. Thus the host
-is one executable, but not yet a fully self-contained distribution. The default
-graph path is relative to the working directory, not the executable.
+Both WASM sensors are embedded. The default demo is self-contained and can run
+from any working directory; its graph is constructed in memory. Brain mode
+still needs an external graph, whose default path is relative to the working
+directory, not the executable.
 
 Always rebuild the sensor after changing its source. `go run ./cmd/drosophila`
 alone uses the previously generated WASM. A command-style WASM build without
 `-buildmode=c-shared` is incompatible with this loader: it has `_start` instead
 of the required `_initialize` and can fail with `runtime.notInitialized`.
 On a fresh checkout, run `make plugins` before building the host or running
-`go test ./...` directly: `go:embed` requires the generated sensor file.
+`go test ./...` directly: `go:embed` requires both generated sensor files.
 
 ### Configuration And Logs
 
-Only CLI flags configure the host: `-brain` defaults to `data/male_cns.bin`,
-and `-ticks` defaults to `300` (`0` runs until interrupted). No YAML file or
+Only CLI flags configure the host: `-mode` defaults to `demo` (or select `brain`),
+`-brain` defaults to `data/male_cns.bin` and is used only in brain mode,
+and `-ticks` defaults to `3` (`0` runs until interrupted). For the previous
+300-tick large-graph run, specify `-mode brain -ticks 300`. No YAML file or
 environment overrides are used. `cmd/drosophila/config.go` parses and validates
 flags using a local `FlagSet`; `run(ctx, cfg, logger)` executes the application
 without parsing flags or installing signal handlers.
@@ -114,10 +154,11 @@ There is no log-file rotation, custom logging wrapper, or JSON-output flag.
 
 ## Follow One Signal
 
-Read these files in order rather than starting with the architecture roadmap:
+For the default demo, read `cmd/drosophila/demo.go` first. For brain mode, follow
+these files rather than starting with the architecture roadmap:
 
 1. `cmd/drosophila/`: `config.go` parses CLI flags; `main.go` installs signal
-   handlers, creates the logger, and runs the graph, sensor, and biological clock.
+   handlers, creates the logger, and selects `runDemo` or `runBrain`.
 2. `plugins/src/sensor_random/main.go`: exports `tick()` and sends a random
    `float32` in `[0, 1)` to neuron `100` every 50 ms.
 3. `internal/wasm/abi_input.go`: implements `env.host_emit_signal(i32, i32)`.
@@ -136,8 +177,9 @@ Read these files in order rather than starting with the architecture roadmap:
 8. `cmd/malecns-importer/`: `main.go` handles flags; `csv.go` maps biological IDs
    to dense indices and scales weights by `0.05`; `binary.go` writes the graph.
 
-Two clocks are independent: sensor sampling is every 50 ms; biological ticks
-are every 10 ms. These are scheduling targets, not hard real-time guarantees.
+In brain mode, two clocks are independent: sensor sampling is every 50 ms;
+biological ticks are every 10 ms. The demo uses one 250 ms clock. These are
+scheduling targets, not hard real-time guarantees.
 
 ### Engine Data Model
 
@@ -163,7 +205,9 @@ edge count, `uint32` offsets (neurons + 1), `uint32` targets (edges), and
 ## Scope And Tests
 
 Implemented: graph import/loading, simplified LIF engine, atomic input buffer,
-embedded random sensor, WASM input ABI, console activity, and graceful shutdown.
+embedded fixed/random sensors, WASM input ABI, console activity, and graceful
+shutdown. The default demo produces deterministic output events from a small
+network; the biological graph remains an experimental mode.
 
 Roadmap only: HTTP host API, dashboard, WebSocket, mock server, effectors,
 proprietary plugin loading from disk, learning, database, and snapshots.
@@ -176,7 +220,7 @@ is a draft, with context length and memory ownership still unresolved.
 
 `cmd/` contains the console host and offline CSV importer; `internal/engine/`
 contains graph loading and SNN math; `internal/wasm/` contains the input ABI and
-sensor lifecycle; `plugins/` contains the embedded sensor and its source.
+sensor lifecycle; `plugins/` contains the embedded sensors and their sources.
 `download_brain.py` obtains the CSV separately; the Go importer does not call
 NeuPrint. Use explicit `-csv` and `-out` paths as shown above.
 The defaults are `data/manc_synapses.csv` and `data/male_cns.bin`. Malformed
@@ -199,7 +243,8 @@ ABI or the HTTP host API.
 
 `make check` rebuilds the sensor, runs tests, and runs `go vet`. Tests cover
 graph validation, CSV import and binary roundtrips, leak/threshold/reset behavior,
-next-tick propagation, buffer overwrite/reset, and embedded WASM lifecycle.
+next-tick propagation, buffer overwrite/reset, embedded WASM lifecycle, and
+two complete cycles of the default application's demo.
 They do not establish biological validity, incident-detection quality, or
 production performance of the large graph.
 

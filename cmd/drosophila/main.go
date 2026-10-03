@@ -34,7 +34,18 @@ func main() {
 	}
 }
 
-func run(ctx context.Context, cfg Config, logger *slog.Logger) (err error) {
+func run(ctx context.Context, cfg Config, logger *slog.Logger) error {
+	switch cfg.Mode {
+	case "demo":
+		return runDemo(ctx, cfg, logger)
+	case "brain":
+		return runBrain(ctx, cfg, logger)
+	default:
+		return fmt.Errorf("mode must be demo or brain")
+	}
+}
+
+func runBrain(ctx context.Context, cfg Config, logger *slog.Logger) (err error) {
 	logger.Info("application starting", "brain", cfg.BrainPath)
 
 	eng, err := engine.LoadEngine(cfg.BrainPath)
