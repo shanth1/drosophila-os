@@ -1,4 +1,4 @@
-.PHONY: plugins run test check wasm-lab
+.PHONY: plugins run test check wasm-lab snn-lab
 
 plugins:
 	mkdir -p plugins/compiled
@@ -15,3 +15,6 @@ check: test
 
 wasm-lab:
 	CGO_ENABLED=0 go test -mod=readonly -v -count=1 ./examples/wasm
+
+snn-lab:
+	CGO_ENABLED=0 go test -mod=readonly -v -count=1 ./examples/snn
