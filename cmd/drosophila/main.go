@@ -5,6 +5,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"log/slog"
 	"os"
 	"os/signal"
 	"syscall"
@@ -16,31 +17,34 @@ import (
 )
 
 func main() {
-	if err := run(); err != nil {
-		fmt.Fprintln(os.Stderr, "Drosophila.OS:", err)
+	logger := slog.New(slog.NewTextHandler(os.Stderr, nil))
+	cfg, err := parseConfig(os.Args[1:], os.Stdout)
+	if errors.Is(err, flag.ErrHelp) {
+		return
+	}
+	if err != nil {
+		logger.Error("invalid configuration", "error", err)
+		os.Exit(2)
+	}
+	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer cancel()
+	if err := run(ctx, cfg, logger); err != nil {
+		logger.Error("application failed", "error", err)
 		os.Exit(1)
 	}
 }
 
-func run() (err error) {
-	brainPath := flag.String("brain", "data/male_cns.bin", "path to the binary connectome")
-	ticks := flag.Int("ticks", 300, "number of biological ticks; 0 runs until Ctrl+C")
-	flag.Parse()
-	if *ticks < 0 {
-		return fmt.Errorf("ticks must be non-negative")
-	}
-	fmt.Println("Booting Drosophila.OS Core...")
-	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer cancel()
+func run(ctx context.Context, cfg Config, logger *slog.Logger) (err error) {
+	logger.Info("application starting", "brain", cfg.BrainPath)
 
-	eng, err := engine.LoadEngine(*brainPath)
+	eng, err := engine.LoadEngine(cfg.BrainPath)
 	if err != nil {
 		return err
 	}
 	if eng.Conn.NumNeurons <= 100 {
 		return fmt.Errorf("random sensor requires neuron index 100; graph has %d neurons", eng.Conn.NumNeurons)
 	}
-	fmt.Printf("Brain loaded: %d neurons, %d synapses\n", eng.Conn.NumNeurons, eng.Conn.NumEdges)
+	logger.Info("brain loaded", "neurons", eng.Conn.NumNeurons, "synapses", eng.Conn.NumEdges)
 
 	wasmManager, err := wasm.NewManager(ctx, eng.Buffer)
 	if err != nil {
@@ -58,8 +62,12 @@ func run() (err error) {
 			err = errors.Join(err, sensorErr)
 		default:
 		}
-		if err == nil && *ticks > 0 && tickNum >= *ticks {
-			fmt.Printf("Demo completed: %d ticks, %d total spikes.\n", tickNum, totalSpikes)
+		if err == nil {
+			reason := "tick limit"
+			if ctx.Err() != nil {
+				reason = "context canceled"
+			}
+			logger.Info("application stopped", "reason", reason, "ticks", tickNum, "total_spikes", totalSpikes)
 		}
 	}()
 
@@ -68,16 +76,15 @@ func run() (err error) {
 	if err != nil {
 		return err
 	}
+	logger.Info("sensor loaded", "sensor", "sensor_random", "interval", 50*time.Millisecond)
 
 	ticker := time.NewTicker(10 * time.Millisecond)
 	defer ticker.Stop()
 
-	fmt.Printf("Biological clock: 10ms; random sensor: 50ms; target: #100; tick limit: %d (0 = unlimited)\n", *ticks)
-	fmt.Println("Press Ctrl+C to stop. Spikes describe network activity, not detected incidents.")
+	logger.Info("engine started", "tick_interval", 10*time.Millisecond, "target_neuron", 100, "tick_limit", cfg.TickLimit)
 	for {
 		select {
 		case <-ctx.Done():
-			fmt.Println("Stopped by signal.")
 			return nil
 		case err := <-wasmManager.Errors():
 			return err
@@ -97,11 +104,11 @@ func run() (err error) {
 
 		if tickNum%50 == 0 {
 			// Print every 50 ticks (nominally 500ms).
-			fmt.Printf("[Tick %5d] Spikes now: %-6d | Total spikes: %d | Voltage #100: %.3f\n",
-				tickNum, spikes, totalSpikes, eng.State.Voltages[100])
+			logger.Info("engine state", "tick", tickNum, "spikes", spikes,
+				"total_spikes", totalSpikes, "target_voltage", eng.State.Voltages[100])
 		}
 
-		if *ticks > 0 && tickNum >= *ticks {
+		if cfg.TickLimit > 0 && tickNum >= cfg.TickLimit {
 			break
 		}
 	}

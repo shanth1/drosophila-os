@@ -29,17 +29,18 @@ it is not necessary when the binary graph is already available.
 make run
 ```
 
-This rebuilds the sensor as a WASI reactor, embeds it in the Go host, loads the
-graph, and runs 300 biological ticks (nominally three seconds). Compilation and
-graph loading add startup time. Expect:
+This rebuilds the sensor as a WASI reactor, embeds it in `bin/drosophila`, loads
+the graph, and runs 300 biological ticks (nominally three seconds). Compilation
+and graph loading add startup time. Logs use the standard `slog` text format on
+stderr. Expect messages with these fields (timestamps omitted):
 
 ```text
-Brain loaded: ... neurons, ... synapses
-[WASM] Sensor loaded: 'sensor_random' (polling every 50ms)
+level=INFO msg="brain loaded" neurons=... synapses=...
+level=INFO msg="sensor loaded" sensor=sensor_random interval=50ms
 ...
-[Tick    50] Spikes now: ... | Total spikes: ... | Voltage #100: ...
+level=INFO msg="engine state" tick=50 spikes=... total_spikes=... target_voltage=...
 ...
-Demo completed: 300 ticks, ... total spikes.
+level=INFO msg="application stopped" reason="tick limit" ticks=300 total_spikes=...
 ```
 
 Counts depend on the imported CSV; they do not establish a complete biological
@@ -68,10 +69,18 @@ Array indices follow the first appearance of biological IDs in the CSV; index
 ## Build And Resources
 
 ```sh
-make plugins
-CGO_ENABLED=0 go build -o /tmp/drosophila ./cmd/drosophila
-/tmp/drosophila -brain /absolute/path/male_cns.bin
+make build
+./bin/drosophila -brain /absolute/path/male_cns.bin
+./bin/drosophila -help
+make clean
 ```
+
+`make` defaults to `build`. `make build` first compiles the sensor into
+`plugins/compiled/sensor_random.wasm`, then embeds those bytes in the host binary
+at `bin/drosophila`. Both generated paths are ignored by Git. `make run` builds
+and executes this binary, forwarding `ARGS` as command-line arguments.
+`make clean` removes only these two generated files, not source, data, or Go's
+build cache. WASM stays under `plugins/` because `go:embed` paths cannot use `../`.
 
 The WASM sensor is embedded; the graph is still an external file. Thus the host
 is one executable, but not yet a fully self-contained distribution. The default
@@ -84,12 +93,31 @@ of the required `_initialize` and can fail with `runtime.notInitialized`.
 On a fresh checkout, run `make plugins` before building the host or running
 `go test ./...` directly: `go:embed` requires the generated sensor file.
 
+### Configuration And Logs
+
+Only CLI flags configure the host: `-brain` defaults to `data/male_cns.bin`,
+and `-ticks` defaults to `300` (`0` runs until interrupted). No YAML file or
+environment overrides are used. `cmd/drosophila/config.go` parses and validates
+flags using a local `FlagSet`; `run(ctx, cfg, logger)` executes the application
+without parsing flags or installing signal handlers.
+
+Help is written to stdout; diagnostics and neural activity statistics are
+written to stderr through `log/slog`. Invalid configuration exits with status
+`2`; runtime failures exit with status `1`; a completed run or graceful signal
+shutdown exits with status `0`. The CLI logs each returned error once. Engine
+and WASM packages return errors rather than logging them. Lab examples retain
+`t.Log` output. The offline importer also uses `slog` for its diagnostics.
+
+Example log fields include `sensor`, `interval`, `tick`, `spikes`, `total_spikes`,
+and `target_voltage`. These describe network activity, not detected incidents.
+There is no log-file rotation, custom logging wrapper, or JSON-output flag.
+
 ## Follow One Signal
 
 Read these files in order rather than starting with the architecture roadmap:
 
-1. `cmd/drosophila/main.go`: loads the graph, starts the sensor and biological
-   clock, prints activity, and handles shutdown.
+1. `cmd/drosophila/`: `config.go` parses CLI flags; `main.go` installs signal
+   handlers, creates the logger, and runs the graph, sensor, and biological clock.
 2. `plugins/src/sensor_random/main.go`: exports `tick()` and sends a random
    `float32` in `[0, 1)` to neuron `100` every 50 ms.
 3. `internal/wasm/abi_input.go`: implements `env.host_emit_signal(i32, i32)`.

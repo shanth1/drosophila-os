@@ -3,7 +3,6 @@ package wasm
 import (
 	"context"
 	"fmt"
-	"log"
 	"sync"
 	"time"
 
@@ -94,7 +93,6 @@ func (m *Manager) LoadSensor(name string, wasmBytes []byte, interval time.Durati
 	m.wg.Add(1)
 	go m.pollSensor(name, mod.ExportedFunction("tick"), interval)
 
-	log.Printf("[WASM] Sensor loaded: '%s' (polling every %v)", name, interval)
 	return nil
 }
 

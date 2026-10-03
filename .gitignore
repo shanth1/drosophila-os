@@ -3,3 +3,4 @@
 plugins/compiled
 .env
 data/
+bin/

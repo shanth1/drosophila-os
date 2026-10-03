@@ -2,10 +2,12 @@ package main
 
 import (
 	"flag"
-	"log"
+	"log/slog"
+	"os"
 )
 
 func main() {
+	logger := slog.New(slog.NewTextHandler(os.Stderr, nil))
 	csvPath := flag.String("csv", "data/manc_synapses.csv", "Path to NeuPrint synapses CSV")
 	outPath := flag.String("out", "data/male_cns.bin", "Path to output binary connectome")
 	flag.Parse()
@@ -14,7 +16,8 @@ func main() {
 		err = writeConnectome(*outPath, conn)
 	}
 	if err != nil {
-		log.Fatal(err)
+		logger.Error("import failed", "error", err)
+		os.Exit(1)
 	}
-	log.Printf("Wrote %d neurons and %d synapses to %s", conn.NumNeurons, conn.NumEdges, *outPath)
+	logger.Info("connectome written", "neurons", conn.NumNeurons, "synapses", conn.NumEdges, "path", *outPath)
 }
