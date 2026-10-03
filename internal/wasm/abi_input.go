@@ -2,11 +2,9 @@ package wasm
 
 import (
 	"context"
-	"log"
 	"math"
 
 	"github.com/tetratelabs/wazero"
-	"github.com/tetratelabs/wazero/api"
 )
 
 // SignalReceiver abstracts the InputBuffer to decouple WASM from the Engine implementation.
@@ -18,7 +16,7 @@ type SignalReceiver interface {
 func RegisterInputABI(ctx context.Context, runtime wazero.Runtime, receiver SignalReceiver) error {
 	_, err := runtime.NewHostModuleBuilder("env").
 		NewFunctionBuilder().
-		WithFunc(func(ctx context.Context, mod api.Module, receptorID int32, intensityBits uint32) {
+		WithFunc(func(receptorID int32, intensityBits uint32) {
 			if receptorID < 0 {
 				return
 			}
@@ -38,10 +36,5 @@ func RegisterInputABI(ctx context.Context, runtime wazero.Runtime, receiver Sign
 		Export("host_emit_signal").
 		Instantiate(ctx)
 
-	if err != nil {
-		log.Printf("[WASM-ABI] Failed to export host_emit_signal: %v", err)
-		return err
-	}
-
-	return nil
+	return err
 }

@@ -12,25 +12,14 @@ import (
 	"github.com/tetratelabs/wazero/imports/wasi_snapshot_preview1"
 )
 
-// Plugin represents an active, isolated WASM sensor or effector.
-type Plugin struct {
-	Name     string
-	mod      api.Module
-	tickFunc api.Function
-	interval time.Duration
-	stopChan chan struct{}
-}
-
-// Manager orchestrates all running WASM instances.
+// Manager loads isolated WASM sensors and polls each in its own goroutine.
 type Manager struct {
-	ctx      context.Context
-	cancel   context.CancelFunc
-	runtime  wazero.Runtime
-	receiver SignalReceiver
-	mu       sync.Mutex
-	plugins  []*Plugin
-	errors   chan error
-	wg       sync.WaitGroup
+	ctx     context.Context
+	cancel  context.CancelFunc
+	runtime wazero.Runtime
+	errors  chan error
+	mu      sync.Mutex // Serializes loading with shutdown, including wg.Add/Wait.
+	wg      sync.WaitGroup
 }
 
 // NewManager creates a new Wazero-backed WASM plugin manager.
@@ -52,11 +41,10 @@ func NewManager(ctx context.Context, receiver SignalReceiver) (*Manager, error) 
 	}
 
 	return &Manager{
-		ctx:      ctx,
-		cancel:   cancel,
-		runtime:  runtime,
-		receiver: receiver,
-		errors:   make(chan error, 1),
+		ctx:     ctx,
+		cancel:  cancel,
+		runtime: runtime,
+		errors:  make(chan error, 1),
 	}, nil
 }
 
@@ -67,6 +55,9 @@ func (m *Manager) LoadSensor(name string, wasmBytes []byte, interval time.Durati
 	if interval <= 0 {
 		return fmt.Errorf("sensor %s polling interval must be positive", name)
 	}
+	if err := m.ctx.Err(); err != nil {
+		return fmt.Errorf("load sensor %s: %w", name, err)
+	}
 
 	// Compile the module (wazero optimizes it to native machine code in-memory)
 	compiled, err := m.runtime.CompileModule(m.ctx, wasmBytes)
@@ -75,63 +66,56 @@ func (m *Manager) LoadSensor(name string, wasmBytes []byte, interval time.Durati
 	}
 	defer compiled.Close(m.ctx)
 
-	if _, ok := compiled.ExportedFunctions()["_initialize"]; !ok {
+	exports := compiled.ExportedFunctions()
+	initialize := exports["_initialize"]
+	if initialize == nil {
 		return fmt.Errorf("sensor %s must export _initialize; rebuild with -buildmode=c-shared", name)
+	}
+	if len(initialize.ParamTypes()) != 0 || len(initialize.ResultTypes()) != 0 {
+		return fmt.Errorf("sensor %s must export _initialize with signature () -> ()", name)
+	}
+	tick := exports["tick"]
+	if tick == nil {
+		return fmt.Errorf("module %s is missing exported 'tick' function", name)
+	}
+	if len(tick.ParamTypes()) != 0 || len(tick.ResultTypes()) != 0 {
+		return fmt.Errorf("sensor %s must export tick with signature () -> ()", name)
 	}
 	config := wazero.NewModuleConfig().WithName(name).WithStartFunctions("_initialize")
 	mod, err := m.runtime.InstantiateModule(m.ctx, compiled, config)
 	if err != nil {
 		return fmt.Errorf("instantiate module %s: %w", name, err)
 	}
-
-	tickFunc := mod.ExportedFunction("tick")
-	if tickFunc == nil {
-		_ = mod.Close(m.ctx)
-		return fmt.Errorf("module %s is missing exported 'tick' function", name)
-	}
-	if len(tickFunc.Definition().ParamTypes()) != 0 || len(tickFunc.Definition().ResultTypes()) != 0 {
-		_ = mod.Close(m.ctx)
-		return fmt.Errorf("sensor %s must export tick with signature () -> ()", name)
+	if err := m.ctx.Err(); err != nil {
+		_ = mod.Close(context.Background())
+		return fmt.Errorf("initialize sensor %s: %w", name, err)
 	}
 
-	plugin := &Plugin{
-		Name:     name,
-		mod:      mod,
-		tickFunc: tickFunc,
-		interval: interval,
-		stopChan: make(chan struct{}),
-	}
-
-	m.plugins = append(m.plugins, plugin)
-
-	// Start isolated polling goroutine
 	m.wg.Add(1)
-	go m.runPluginLoop(plugin)
+	go m.pollSensor(name, mod.ExportedFunction("tick"), interval)
 
 	log.Printf("[WASM] Sensor loaded: '%s' (polling every %v)", name, interval)
 	return nil
 }
 
-func (m *Manager) runPluginLoop(p *Plugin) {
+func (m *Manager) pollSensor(name string, tick api.Function, interval time.Duration) {
 	defer m.wg.Done()
-	ticker := time.NewTicker(p.interval)
+	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 
 	for {
 		select {
-		case <-p.stopChan:
-			return
 		case <-m.ctx.Done():
 			return
 		case <-ticker.C:
 			// Execute the guest tick()
-			_, err := p.tickFunc.Call(m.ctx)
+			_, err := tick.Call(m.ctx)
 			if err != nil {
 				if m.ctx.Err() != nil {
 					return
 				}
 				select {
-				case m.errors <- fmt.Errorf("sensor %s tick: %w", p.Name, err):
+				case m.errors <- fmt.Errorf("sensor %s tick: %w", name, err):
 				default:
 				}
 				return
@@ -147,14 +131,11 @@ func (m *Manager) Errors() <-chan error {
 
 // Close gracefully terminates all plugins and runtime resources.
 func (m *Manager) Close() error {
+	// Cancel before locking so a running guest _initialize can be interrupted.
+	m.cancel()
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	m.cancel()
-	for _, p := range m.plugins {
-		close(p.stopChan)
-	}
 	m.wg.Wait()
-	m.plugins = nil
 	return m.runtime.Close(context.Background())
 }

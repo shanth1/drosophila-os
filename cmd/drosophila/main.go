@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"os"
@@ -21,7 +22,7 @@ func main() {
 	}
 }
 
-func run() error {
+func run() (err error) {
 	brainPath := flag.String("brain", "data/male_cns.bin", "path to the binary connectome")
 	ticks := flag.Int("ticks", 300, "number of biological ticks; 0 runs until Ctrl+C")
 	flag.Parse()
@@ -32,7 +33,6 @@ func run() error {
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
 
-	// 1. Load the biological brain
 	eng, err := engine.LoadEngine(*brainPath)
 	if err != nil {
 		return err
@@ -42,27 +42,38 @@ func run() error {
 	}
 	fmt.Printf("Brain loaded: %d neurons, %d synapses\n", eng.Conn.NumNeurons, eng.Conn.NumEdges)
 
-	// 2. Initialize WASM Manager
 	wasmManager, err := wasm.NewManager(ctx, eng.Buffer)
 	if err != nil {
 		return err
 	}
-	defer wasmManager.Close()
+	tickNum := 0
+	var totalSpikes uint64
+	defer func() {
+		if closeErr := wasmManager.Close(); closeErr != nil {
+			err = errors.Join(err, fmt.Errorf("close WASM runtime: %w", closeErr))
+		}
+		// Polling has stopped; include failures from the last in-flight call.
+		select {
+		case sensorErr := <-wasmManager.Errors():
+			err = errors.Join(err, sensorErr)
+		default:
+		}
+		if err == nil && *ticks > 0 && tickNum >= *ticks {
+			fmt.Printf("Demo completed: %d ticks, %d total spikes.\n", tickNum, totalSpikes)
+		}
+	}()
 
-	// 3. Load embedded random sensor (polls every 50ms)
+	// Load the embedded random sensor (polls every 50ms).
 	err = wasmManager.LoadSensor("sensor_random", plugins.SensorRandomWASM, 50*time.Millisecond)
 	if err != nil {
 		return err
 	}
 
-	// 4. Run the Biological Clock (ticks every 10ms)
 	ticker := time.NewTicker(10 * time.Millisecond)
 	defer ticker.Stop()
 
 	fmt.Printf("Biological clock: 10ms; random sensor: 50ms; target: #100; tick limit: %d (0 = unlimited)\n", *ticks)
 	fmt.Println("Press Ctrl+C to stop. Spikes describe network activity, not detected incidents.")
-	tickNum := 0
-	var totalSpikes uint64
 	for {
 		select {
 		case <-ctx.Done():
@@ -77,15 +88,15 @@ func run() error {
 
 		// Count spikes in this tick
 		spikes := 0
-		for i := uint32(0); i < eng.Conn.NumNeurons; i++ {
-			if eng.State.Fired[i] {
+		for _, fired := range eng.State.Fired {
+			if fired {
 				spikes++
 			}
 		}
 		totalSpikes += uint64(spikes)
 
 		if tickNum%50 == 0 {
-			// Print status every 500ms
+			// Print every 50 ticks (nominally 500ms).
 			fmt.Printf("[Tick %5d] Spikes now: %-6d | Total spikes: %d | Voltage #100: %.3f\n",
 				tickNum, spikes, totalSpikes, eng.State.Voltages[100])
 		}
@@ -95,14 +106,5 @@ func run() error {
 		}
 	}
 
-	if err := wasmManager.Close(); err != nil {
-		return fmt.Errorf("close WASM runtime: %w", err)
-	}
-	select {
-	case err := <-wasmManager.Errors():
-		return err
-	default:
-	}
-	fmt.Printf("Demo completed: %d ticks, %d total spikes.\n", tickNum, totalSpikes)
 	return nil
 }

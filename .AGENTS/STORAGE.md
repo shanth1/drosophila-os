@@ -1,14 +1,19 @@
 # STORAGE: State Management, Memory & Snapshots
 
+Status: roadmap except for the engine's in-memory SoA/CSR arrays. BadgerDB,
+trace logs, snapshots, telemetry persistence, and learned-weight saving are
+not implemented; empty storage placeholders have been removed. The current
+input buffer is a latest-value mailbox, not the proposed trace ring buffer.
+
 ## 1. Storage Philosophy: RAM vs Disk
-Drosophila.OS operates with extremely high frequency (ticks every ~10ms). Therefore, hot data (neuron potentials) must live strictly in memory (RAM), while historical/persistent data is offloaded to a high-throughput, write-optimized database (`BadgerDB`).
+Drosophila.OS targets ticks every ~10ms and keeps hot data (neuron potentials) in RAM. The roadmap proposes offloading historical/persistent data to a write-optimized database (`BadgerDB`); the current host does not persist this history.
 
 ## 2. In-Memory Structures (Hot Path)
 *   **Connectome Matrices:** Arrays storing current `Voltage`, `Threshold`, `Decay`, and `Weights`. Optimized using Structure of Arrays (SoA) for CPU cache locality.
 *   **Trace Logs (Ring Buffers):** A critical component for learning and context. The system maintains an in-memory circular buffer storing the exact state of all receptors and motor spikes for the last `N` minutes. When the buffer is full, the oldest ticks are overwritten. This buffer is instantly read to generate the `context_ptr` for effector modules when an alert fires.
 
 ## 3. Persistent Storage (BadgerDB)
-We strictly use `BadgerDB` (pure Go, LSM-Tree) because the framework generates a **write-heavy workload**. B-Tree databases (like `bbolt`) degrade under continuous time-series writes.
+`BadgerDB` (pure Go, LSM-Tree) is the proposed store for a **write-heavy workload**. This choice still needs workload measurements; no database is currently integrated.
 
 ### 3.1. Snapshots (Event-Driven Freezes)
 When a critical motor action fires (e.g., an Alert is sent), the system captures the context:

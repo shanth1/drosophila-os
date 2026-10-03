@@ -92,8 +92,9 @@ func TestWASMSignalTriggersOutput(t *testing.T) {
 			if e.State.Voltages[neuron] != step.voltage[neuron] ||
 				e.State.PendingVoltages[neuron] != step.pending[neuron] ||
 				e.State.Fired[neuron] != step.fired[neuron] {
-				t.Fatalf("tick %d neuron %d: expected voltage=%v pending=%v fired=%v",
-					i+1, neuron, step.voltage[neuron], step.pending[neuron], step.fired[neuron])
+				t.Fatalf("tick %d neuron %d: expected voltage=%v pending=%v fired=%v; got voltage=%v pending=%v fired=%v",
+					i+1, neuron, step.voltage[neuron], step.pending[neuron], step.fired[neuron],
+					e.State.Voltages[neuron], e.State.PendingVoltages[neuron], e.State.Fired[neuron])
 			}
 		}
 		// Host output: record an event when B fires; no WASM effector is involved.

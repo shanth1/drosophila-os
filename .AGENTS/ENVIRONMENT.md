@@ -1,7 +1,11 @@
 # ENVIRONMENT: 3D Frontend, UI & Mock Infrastructure
 
+Status: roadmap only. The mock server, HTTP endpoints, WebSocket broadcaster,
+and frontend described below are not implemented. Their empty placeholders
+have been removed; the current host prints console statistics only.
+
 ## 1. The Mock Server (Standalone Sandbox Project)
-To facilitate testing, chaos engineering, and synthetic training without breaking production, the ecosystem includes a dedicated **Mock Server** (`cmd/mock-server`).
+To facilitate testing, chaos engineering, and synthetic training without breaking production, the roadmap proposes a dedicated **Mock Server** (future `cmd/mock-server`).
 *   **Independence:** This is a separate, highly extensible project. It can be compiled as an independent binary to simulate complex network infrastructures (Nodes, Load Balancers, Databases).
 *   **Embedded Sandbox:** For a zero-config MVP, the main Drosophila binary can import and run the Mock Server internally as a background goroutine.
 *   **Chaos API:** Endpoints like `/api/mock/kill?target=db` allow engineers to inject forced anomalies, observing the SNN's emergent reactions to synthetic stress.

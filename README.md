@@ -34,7 +34,7 @@ graph, and runs 300 biological ticks (nominally three seconds). Compilation and
 graph loading add startup time. Expect:
 
 ```text
-Brain loaded: 173023 neurons, 6287789 synapses
+Brain loaded: ... neurons, ... synapses
 [WASM] Sensor loaded: 'sensor_random' (polling every 50ms)
 ...
 [Tick    50] Spikes now: ... | Total spikes: ... | Voltage #100: ...
@@ -42,8 +42,9 @@ Brain loaded: 173023 neurons, 6287789 synapses
 Demo completed: 300 ticks, ... total spikes.
 ```
 
-Values vary because the sensor is random. A zero instantaneous spike count does
-not imply a broken sensor. Voltage resets to zero when a neuron fires.
+Counts depend on the imported CSV; they do not establish a complete biological
+connectome. Values vary because the sensor is random. A zero instantaneous spike
+count does not imply a broken sensor. Voltage resets to zero when a neuron fires.
 With the current graph and default weights, activity can quickly saturate at
 roughly 160,000 firing neurons per tick. This is a limitation of the model and
 weight calibration, not evidence of useful monitoring behavior. The demo keeps
@@ -61,6 +62,8 @@ The random sensor targets neuron index `100`, so its graph needs at least 101
 neurons. This index is not a configured biological receptor or incident detector.
 Ctrl+C stops the host and its sensor. A sensor failure stops the demo with a
 nonzero exit status rather than silently reporting success.
+Array indices follow the first appearance of biological IDs in the CSV; index
+`100` does not identify the same biological neuron across reordered exports.
 
 ## Build And Resources
 
@@ -78,6 +81,8 @@ Always rebuild the sensor after changing its source. `go run ./cmd/drosophila`
 alone uses the previously generated WASM. A command-style WASM build without
 `-buildmode=c-shared` is incompatible with this loader: it has `_start` instead
 of the required `_initialize` and can fail with `runtime.notInitialized`.
+On a fresh checkout, run `make plugins` before building the host or running
+`go test ./...` directly: `go:embed` requires the generated sensor file.
 
 ## Follow One Signal
 
@@ -90,7 +95,7 @@ Read these files in order rather than starting with the architecture roadmap:
 3. `internal/wasm/abi_input.go`: implements `env.host_emit_signal(i32, i32)`.
    The second integer contains IEEE 754 float bits, not an integer conversion.
    Negative neuron IDs and NaN are dropped; intensity is clamped to `[0, 1]`.
-4. `internal/engine/buffer.go`: atomically stores the latest signal per neuron.
+4. `internal/engine/buffer.go`: an atomic latest-value mailbox per neuron.
    This is not an event queue: multiple writes before a flush overwrite each
    other. Each biological tick consumes and clears the buffer.
 5. `internal/engine/tick.go` and `habituation.go`: apply leak to existing voltage,
@@ -100,8 +105,8 @@ Read these files in order rather than starting with the architecture roadmap:
    voltages to zero, thresholds to `1`, and leak rates to `0.05` per tick.
 7. `internal/wasm/manager.go`: initializes the WASI reactor, polls `tick()` in a
    separate goroutine, reports failures, and closes the runtime.
-8. `cmd/malecns-importer/main.go`: converts CSV biological IDs into dense array
-   indices and scales connection weights by `0.05`.
+8. `cmd/malecns-importer/`: `main.go` handles flags; `csv.go` maps biological IDs
+   to dense indices and scales weights by `0.05`; `binary.go` writes the graph.
 
 Two clocks are independent: sensor sampling is every 50 ms; biological ticks
 are every 10 ms. These are scheduling targets, not hard real-time guarantees.
@@ -132,13 +137,45 @@ edge count, `uint32` offsets (neurons + 1), `uint32` targets (edges), and
 Implemented: graph import/loading, simplified LIF engine, atomic input buffer,
 embedded random sensor, WASM input ABI, console activity, and graceful shutdown.
 
-Not implemented: HTTP API, dashboard, WebSocket, effectors, learning, database,
-and snapshots. Their source packages are placeholders. `drosophila.yaml` is
-currently unused. Documents under `.AGENTS/` describe a broader target design,
-not the current runtime.
+Roadmap only: HTTP host API, dashboard, WebSocket, mock server, effectors,
+proprietary plugin loading from disk, learning, database, and snapshots.
+Empty/package-only placeholders for these features and the empty YAML file
+have been removed; no implementation was removed. Documents under `.AGENTS/`
+distinguish the broader target design from the current runtime. The output ABI
+is a draft, with context length and memory ownership still unresolved.
+
+### Code Map And Labs
+
+`cmd/` contains the console host and offline CSV importer; `internal/engine/`
+contains graph loading and SNN math; `internal/wasm/` contains the input ABI and
+sensor lifecycle; `plugins/` contains the embedded sensor and its source.
+`download_brain.py` obtains the CSV separately; the Go importer does not call
+NeuPrint. Use explicit `-csv` and `-out` paths as shown above.
+The defaults are `data/manc_synapses.csv` and `data/male_cns.bin`. Malformed
+CSV is rejected with row information. Both the downloader and importer replace
+existing output only after successful writes, using temporary paths on the same
+filesystem.
+
+The self-contained examples need Go, but no dataset, credentials, or running
+service. WASM examples build their own guests in temporary directories rather
+than using the production sensor. Each directory has a walkthrough README:
+
+```sh
+make wasm-lab      # Guest function calls and guest-to-host callbacks
+make snn-lab       # Tiny in-memory graphs: propagation, accumulation, and leak
+make pipeline-lab  # Deterministic WASM input -> SNN -> test-side output observation
+```
+
+The pipeline lab observes output in the test; it does not implement an effector
+ABI or the HTTP host API.
 
 `make check` rebuilds the sensor, runs tests, and runs `go vet`. Tests cover
-graph validation, leak/threshold/reset behavior, next-tick propagation, buffer
-overwrite/reset, and repeated signals from the actual embedded WASM reactor.
+graph validation, CSV import and binary roundtrips, leak/threshold/reset behavior,
+next-tick propagation, buffer overwrite/reset, and embedded WASM lifecycle.
 They do not establish biological validity, incident-detection quality, or
 production performance of the large graph.
+
+Resource limits and model calibration remain future work: the loader checks
+format consistency, not a memory budget, and finite weights can still overflow
+when accumulated. The current runtime is not a hardened sandbox for untrusted
+plugins; no per-plugin memory budget or execution deadline is configured.

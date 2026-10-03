@@ -2,6 +2,7 @@ package wasm
 
 import (
 	"context"
+	"errors"
 	"math"
 	"strings"
 	"testing"
@@ -161,5 +162,113 @@ func TestInputABI(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestCloseAndLoadAfterClose(t *testing.T) {
+	m, err := NewManager(context.Background(), make(signalRecorder, 1))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = m.Close() })
+	if err := m.LoadSensor("random", plugins.SensorRandomWASM, time.Millisecond); err != nil {
+		t.Fatal(err)
+	}
+	// Concurrent shutdown calls must be safe and wait for polling to stop.
+	closed := make(chan error, 2)
+	for i := 0; i < 2; i++ {
+		go func() { closed <- m.Close() }()
+	}
+	for i := 0; i < 2; i++ {
+		select {
+		case err := <-closed:
+			if err != nil {
+				t.Fatal(err)
+			}
+		case <-time.After(5 * time.Second):
+			t.Fatal("shutdown did not complete")
+		}
+	}
+	if err := m.LoadSensor("late", plugins.SensorRandomWASM, time.Millisecond); !errors.Is(err, context.Canceled) {
+		t.Fatalf("expected canceled manager, got %v", err)
+	}
+}
+
+func TestCloseDuringInitialization(t *testing.T) {
+	// Reactor: _initialize calls test.wait(); tick is a no-op.
+	module := []byte{
+		0, 97, 115, 109, 1, 0, 0, 0,
+		1, 4, 1, 96, 0, 0,
+		2, 13, 1, 4, 't', 'e', 's', 't', 4, 'w', 'a', 'i', 't', 0, 0,
+		3, 3, 2, 0, 0,
+		7, 22, 2, 11, '_', 'i', 'n', 'i', 't', 'i', 'a', 'l', 'i', 'z', 'e', 0, 1,
+		4, 't', 'i', 'c', 'k', 0, 2,
+		10, 9, 2, 4, 0, 16, 0, 11, 2, 0, 11,
+	}
+	m, err := NewManager(context.Background(), make(signalRecorder, 1))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		// Ensure cleanup can interrupt initialization even if the test fails.
+		m.cancel()
+		_ = m.Close()
+	})
+	started := make(chan struct{})
+	_, err = m.runtime.NewHostModuleBuilder("test").NewFunctionBuilder().
+		WithFunc(func(ctx context.Context) {
+			close(started)
+			<-ctx.Done()
+		}).Export("wait").Instantiate(m.ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	loaded := make(chan error, 1)
+	go func() { loaded <- m.LoadSensor("waiting", module, time.Millisecond) }()
+	select {
+	case <-started:
+	case err := <-loaded:
+		t.Fatalf("initialization did not reach wait: %v", err)
+	case <-time.After(5 * time.Second):
+		t.Fatal("initialization did not start")
+	}
+	closed := make(chan error, 1)
+	go func() { closed <- m.Close() }()
+	select {
+	case err := <-closed:
+		if err != nil {
+			t.Fatal(err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("Close could not cancel initialization while loading held the lock")
+	}
+	select {
+	case err := <-loaded:
+		if err == nil {
+			t.Fatal("expected interrupted initialization error")
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("LoadSensor did not return after cancellation")
+	}
+}
+
+func TestLoadSensorValidatesExportsBeforeInitialization(t *testing.T) {
+	// _initialize traps. An invalid tick must be rejected before that trap.
+	module := []byte{
+		0, 97, 115, 109, 1, 0, 0, 0,
+		1, 8, 2, 96, 0, 0, 96, 1, 127, 0,
+		3, 3, 2, 0, 1,
+		7, 22, 2, 11, '_', 'i', 'n', 'i', 't', 'i', 'a', 'l', 'i', 'z', 'e', 0, 0,
+		4, 't', 'i', 'c', 'k', 0, 1,
+		10, 8, 2, 3, 0, 0, 11, 2, 0, 11,
+	}
+	m, err := NewManager(context.Background(), make(signalRecorder, 1))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer m.Close()
+	err = m.LoadSensor("invalid", module, time.Millisecond)
+	if err == nil || !strings.Contains(err.Error(), "tick with signature () -> ()") {
+		t.Fatalf("expected tick signature error before guest execution, got %v", err)
 	}
 }

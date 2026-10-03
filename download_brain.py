@@ -11,6 +11,7 @@ import logging
 import os
 import sys
 from pathlib import Path
+from tempfile import TemporaryDirectory
 
 from dotenv import load_dotenv
 from neuprint import Client
@@ -47,9 +48,12 @@ def fetch_connectome() -> Path:
     results = client.fetch_custom(query)
     logging.info(f"Retrieved {len(results):,} synaptic connections.")
 
-    # Save to final directory
+    # Replace the previous dataset only after a complete CSV write.
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-    results.to_csv(OUTPUT_FILE, index=False)
+    with TemporaryDirectory(dir=OUTPUT_DIR, prefix=".download-") as temp_dir:
+        temp_file = Path(temp_dir) / OUTPUT_FILE.name
+        results.to_csv(temp_file, index=False)
+        temp_file.replace(OUTPUT_FILE)
     logging.info(f"Dataset successfully saved to: {OUTPUT_FILE}")
 
     return OUTPUT_FILE
