@@ -14,4 +14,4 @@ check: test
 	CGO_ENABLED=0 go vet -mod=readonly ./...
 
 wasm-lab:
-	CGO_ENABLED=0 go test -mod=readonly -v -count=1 -run '^TestWASMFunctionCall$$' ./examples/wasm
+	CGO_ENABLED=0 go test -mod=readonly -v -count=1 ./examples/wasm
