@@ -5,7 +5,7 @@ Drosophila.OS operates with extremely high frequency (ticks every ~10ms). Theref
 
 ## 2. In-Memory Structures (Hot Path)
 *   **Connectome Matrices:** Arrays storing current `Voltage`, `Threshold`, `Decay`, and `Weights`. Optimized using Structure of Arrays (SoA) for CPU cache locality.
-*   **Trace Logs (Ring Buffers):** A critical component for learning. The system maintains an in-memory circular buffer storing the exact state of all receptors and motor spikes for the last `N` minutes (e.g., 5-10 mins). When the buffer is full, the oldest ticks are overwritten.
+*   **Trace Logs (Ring Buffers):** A critical component for learning and context. The system maintains an in-memory circular buffer storing the exact state of all receptors and motor spikes for the last `N` minutes. When the buffer is full, the oldest ticks are overwritten. This buffer is instantly read to generate the `context_ptr` for effector modules when an alert fires.
 
 ## 3. Persistent Storage (BadgerDB)
 We strictly use `BadgerDB` (pure Go, LSM-Tree) because the framework generates a **write-heavy workload**. B-Tree databases (like `bbolt`) degrade under continuous time-series writes.

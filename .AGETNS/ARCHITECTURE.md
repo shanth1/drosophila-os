@@ -16,18 +16,22 @@ The project must compile into a **single, portable binary** with zero external d
 *   **Strictly NO CGO:** The entire codebase must be pure Go. This ensures cross-compilation (Linux/Windows/macOS/ARM) works out of the box.
 *   **Embedded Assets:** All standard WASM plugins, 3D frontend assets (Three.js/HTML/CSS), and pre-trained brain weights (`.bin`) MUST be baked into the binary using Go's `//go:embed` directive.
 
-## 3. The SNN Engine (Brain)
+## 3. Configuration (The Connectome DNA)
+Since sensors and the abstract brain are completely decoupled, the system relies on a declarative configuration (e.g., `drosophila.yaml`) to act as the organism's DNA. This config maps specific WASM sensor outputs to exact SNN receptor nodes and sets thresholds for effector modules, binding the abstract math to the physical infrastructure.
+
+## 4. The SNN Engine (Brain)
 The core uses a mathematically simplified Leaky Integrate-and-Fire (LIF) model, heavily optimized for Data-Oriented Design (structs of arrays) rather than object-oriented node graphs.
 
-### 3.1. Temporal Decoupling (The Two Clocks)
+### 4.1. Temporal Decoupling (The Two Clocks)
 The system operates on two entirely decoupled time loops:
 1.  **Biological Clock (Engine Tick):** Runs continuously at high frequency (e.g., every 10ms). It computes matrix multiplication, applies decay (leak), and propagates spikes across the connectome.
 2.  **Polling Clock (Sensor Interval):** Runs asynchronously based on config (e.g., every 15s). Sensors fetch data, normalize it, and write the current `intensity` into a lock-free buffer. The Biological Clock reads from this buffer on its next tick.
 
-### 3.2. Homeostasis (Habituation)
+### 4.2. Homeostasis (Habituation)
 The engine implements biological habituation. The SNN must adapt to background noise. If a receptor receives a constant `0.5` signal for an hour, the downstream neurons adjust their thresholds (raise them) so the network stops spiking. The system is designed to react to **Deltas (sudden spikes or drops)**, not absolute sustained values.
+*   **Boiled Frog Prevention (Absolute Nociceptors):** To prevent the system from ignoring slow-growing but fatal anomalies (e.g., a gradual memory leak), the configuration allows flagging specific receptors as *Absolute Nociceptors*. For these nodes, the habituation math (leak/decay) is strictly disabled, ensuring they fire persistently at high thresholds without adaptation.
 
-## 4. High-Level Component Topology
+## 5. High-Level Component Topology
 1.  **Engine:** SNN matrix calculator and event loop.
 2.  **WASM Manager (`wazero`):** Pure Go WebAssembly runtime. Handles loading, executing, and memory isolation for plugins.
 3.  **Storage (`BadgerDB`):** Pure Go LSM-Tree database for high-throughput write-heavy tasks (trace logs, snapshots).

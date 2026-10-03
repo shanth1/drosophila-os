@@ -11,7 +11,7 @@ Because a human operator cannot punish a false positive in milliseconds, the sys
 2.  **API Call:** `POST /api/feedback { "event_id": 1234, "type": "punish" }`
 3.  **Snapshot Retrieval:** The Go engine loads the Trace Log snapshot for `1234` from BadgerDB.
 4.  **Time-Travel STDP:** The engine applies the STDP math to the historical data in the snapshot to calculate the exact `Delta` (how the weights *should* have been adjusted).
-5.  **Application:** The calculated `Delta` is applied to the *current* live in-memory connectome.
+5.  **Application:** The calculated `Delta` is applied to the live in-memory connectome. To prevent *Catastrophic Forgetting* (since the live brain has evolved since the snapshot), the delta is applied gradually using a controlled Learning Rate, maintaining current mathematical stability.
 
 ## 3. Offline Learning (Genetic Algorithm)
 To train the system on historical data (e.g., logs from last month) without writing explicit rules:
@@ -23,3 +23,6 @@ To train the system on historical data (e.g., logs from last month) without writ
 
 ## 4. Chaos Mock-Training (Sandbox)
 Before deploying to production, the brain can be trained in a sandbox. The embedded Mock Server generates synthetic anomalies (e.g., simulated DDoS). The Genetic Algorithm forces the brain to find the correlation between the synthetic noise and the desired action.
+
+## 5. Explainable AI (Trace-to-Text)
+IT businesses do not trust "Black Box" automated actions. To ensure transparency, the system provides an Explainability API. When an incident occurs, the algorithm traverses the Trace Log to find the shortest excitation path from the fired motor neuron back to the sensory receptors, generating a human-readable Root-Cause Analysis report (e.g., "Panic triggered primarily by sudden spikes in DB_Pain and gradual increase in RAM_Vision").
