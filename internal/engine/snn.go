@@ -3,6 +3,8 @@ package engine
 import (
 	"encoding/binary"
 	"fmt"
+	"io"
+	"math"
 	"os"
 )
 
@@ -43,26 +45,69 @@ func LoadEngine(binPath string) (*Engine, error) {
 
 	order := binary.LittleEndian
 	magic := make([]byte, 4)
-	if _, err := f.Read(magic); err != nil || string(magic) != "DROS" {
+	if _, err := io.ReadFull(f, magic); err != nil {
+		return nil, fmt.Errorf("failed to read magic bytes: %w", err)
+	}
+	if string(magic) != "DROS" {
 		return nil, fmt.Errorf("invalid magic bytes, expected DROS")
 	}
 
 	var version, numNeurons, numEdges uint32
-	binary.Read(f, order, &version)
-	binary.Read(f, order, &numNeurons)
-	binary.Read(f, order, &numEdges)
+	for _, field := range []*uint32{&version, &numNeurons, &numEdges} {
+		if err := binary.Read(f, order, field); err != nil {
+			return nil, fmt.Errorf("failed to read connectome header: %w", err)
+		}
+	}
+	if version != 1 {
+		return nil, fmt.Errorf("unsupported connectome version: %d", version)
+	}
+	if numNeurons == 0 {
+		return nil, fmt.Errorf("connectome must contain neurons")
+	}
+	offsetCount := uint64(numNeurons) + 1
+	expectedSize := uint64(16) + 4*offsetCount + 8*uint64(numEdges)
+	info, err := f.Stat()
+	if err != nil {
+		return nil, fmt.Errorf("failed to stat connectome: %w", err)
+	}
+	if info.Size() < 0 || uint64(info.Size()) != expectedSize {
+		return nil, fmt.Errorf("invalid connectome size: got %d, expected %d", info.Size(), expectedSize)
+	}
+	maxInt := uint64(^uint(0) >> 1)
+	if offsetCount > maxInt/4 || uint64(numEdges) > maxInt/4 {
+		return nil, fmt.Errorf("connectome arrays exceed platform limits")
+	}
 
 	conn := &Connectome{
 		NumNeurons: numNeurons,
 		NumEdges:   numEdges,
-		Offsets:    make([]uint32, numNeurons+1),
+		Offsets:    make([]uint32, int(offsetCount)),
 		Targets:    make([]uint32, numEdges),
 		Weights:    make([]float32, numEdges),
 	}
 
-	binary.Read(f, order, conn.Offsets)
-	binary.Read(f, order, conn.Targets)
-	binary.Read(f, order, conn.Weights)
+	for _, data := range []any{conn.Offsets, conn.Targets, conn.Weights} {
+		if err := binary.Read(f, order, data); err != nil {
+			return nil, fmt.Errorf("failed to read connectome arrays: %w", err)
+		}
+	}
+	if conn.Offsets[0] != 0 || conn.Offsets[len(conn.Offsets)-1] != numEdges {
+		return nil, fmt.Errorf("invalid CSR offset endpoints")
+	}
+	for i := 1; i < len(conn.Offsets); i++ {
+		if conn.Offsets[i] < conn.Offsets[i-1] {
+			return nil, fmt.Errorf("CSR offsets must be monotonic")
+		}
+	}
+	for i, target := range conn.Targets {
+		if target >= numNeurons {
+			return nil, fmt.Errorf("edge %d target out of bounds: %d", i, target)
+		}
+		weight := float64(conn.Weights[i])
+		if math.IsNaN(weight) || math.IsInf(weight, 0) {
+			return nil, fmt.Errorf("edge %d weight must be finite", i)
+		}
+	}
 
 	// Initialize dynamic state
 	state := &State{

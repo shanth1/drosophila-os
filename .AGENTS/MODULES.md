@@ -26,7 +26,8 @@ Sensors fetch data, normalize it to a strictly enforced `float32` range of `[0.0
 
 **Contract:**
 *   **Exported by WASM:** `tick()` -> The Go host calls this function based on the configured polling interval.
-*   **Imported from Host (Go):** `host_emit_signal(receptor_id i32, intensity f32)` -> The WASM module calls this to push the normalized float into the brain's buffer.
+*   **Imported from Host (Go):** `env.host_emit_signal(receptor_id i32, intensity_bits i32)` -> The second argument contains the IEEE 754 bits of a normalized `float32`, not a numeric integer conversion.
+*   **Initialization:** Sensors export `_initialize()` and are built as WASI reactors. For standard Go use `GOOS=wasip1 GOARCH=wasm go build -buildmode=c-shared`. The host calls `_initialize` once before polling `tick`.
 
 ### 3.2. Output ABI (Effectors/Actions)
 Actions remain completely dormant. They do not poll. They are executed by the Go host only when a specific brain region's electrical potential crosses a configured `threshold`.
