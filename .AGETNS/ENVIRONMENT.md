@@ -1,25 +1,18 @@
 # ENVIRONMENT: 3D Frontend, UI & Mock Infrastructure
 
-## 1. Embedded Mock Server (The Sandbox)
-To make Drosophila.OS a self-contained MVP, it includes an embedded HTTP server (`:8080/api/metrics`) that mimics a typical web infrastructure (Nodes, Load Balancer, DB, Storage).
-*   **Stable State:** By default, it returns normal, slightly noisy metrics (e.g., CPU 40%, 0 errors).
-*   **Chaos API:** Endpoints like `/api/mock/kill?target=db` allow users to forcefully inject anomalies into the mock metrics. This is crucial for demonstrating the emergent reactions of the SNN.
+## 1. The Mock Server (Standalone Sandbox Project)
+To facilitate testing, chaos engineering, and synthetic training without breaking production, the ecosystem includes a dedicated **Mock Server** (`cmd/mock-server`).
+*   **Independence:** This is a separate, highly extensible project. It can be compiled as an independent binary to simulate complex network infrastructures (Nodes, Load Balancers, Databases).
+*   **Embedded Sandbox:** For a zero-config MVP, the main Drosophila binary can import and run the Mock Server internally as a background goroutine.
+*   **Chaos API:** Endpoints like `/api/mock/kill?target=db` allow engineers to inject forced anomalies, observing the SNN's emergent reactions to synthetic stress.
 
 ## 2. Event-Driven Visualization (WebSockets)
-The 3D Frontend (Three.js) is entirely decoupled from decision-making.
-*   **No Command Logic:** The Go engine NEVER sends commands like `show_error_animation()`.
-*   **Raw State Broadcast:** The Go engine broadcasts a raw JSON representation of the brain's state via WebSockets (e.g., `{"receptor_12_pain": 0.9, "motor_5_panic": 1.0, "global_arousal": 0.8}`).
-*   **Frontend Mapping:** The JavaScript frontend parses this JSON and decides how to map it to the 3D scene.
+The 3D Frontend (Three.js) is completely decoupled from the decision-making engine.
+*   **No Command Logic:** The Go OS NEVER sends explicit commands (like `play_alarm()`).
+*   **Raw State Broadcast:** The internal Broadcaster pushes raw JSON representation of the SNN state (e.g., `{"node_pain": 0.9, "node_panic": 1.0}`) via WebSockets.
+*   **Frontend Mapping:** The frontend parses the state and updates the 3D scene accordingly.
 
 ## 3. 3D Scene & UI Mapping Rules
-The Three.js scene consists of a cyber-room with server racks and a holographic fly.
-
-*   **Global Lighting (Homeostasis/Arousal):**
-    *   Low arousal (Normal) -> Blue/Neon ambient light.
-    *   High arousal (Stress) -> Flashing red, alarms.
-*   **Local Anomalies (Particles):**
-    *   If a specific receptor tied to the "Database" spikes, the 3D model of the Database emits smoke/spark particles.
-*   **Avatar Animations (Fly Behavior):**
-    *   If the brain is completely dormant (stable infrastructure), the fly triggers a "Smoking/Idle" animation.
-    *   If the `Motor_Escape` neuron fires, the fly triggers a frantic flying animation.
-*   **Thoughts (Context Overlays):** Minor anomalies trigger floating text bubbles (e.g., *"Node 2 looks heavy"*), providing human-readable context to the SNN's internal state.
+*   **Global Lighting (Arousal):** Low arousal -> Blue/Neon ambient; High arousal -> Flashing red.
+*   **Local Anomalies (Particles):** Spiking receptors tied to specific physical nodes trigger particle emitters (smoke/sparks) on those 3D models.
+*   **Context Overlays:** Minor spikes trigger floating thoughts (e.g., *"Pain increasing in DB zone"*).

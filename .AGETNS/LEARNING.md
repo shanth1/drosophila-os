@@ -1,28 +1,19 @@
-# LEARNING: Plasticity, STDP & Genetic Algorithms
+# LEARNING: Plasticity, Feedback APIs & Evolution
 
-## 1. The Core Mechanism: STDP
-Learning in Drosophila.OS is governed by **Spike-Timing-Dependent Plasticity (STDP)**.
-*   If a sensory spike (e.g., "Error Rate") fires *just before* a motor spike (e.g., "Panic Action"), the synaptic weight between them is **increased** (Reinforcement).
-*   If the sensor fires *after*, or randomly, the weight is **decreased** (Depression).
+## 1. Internal OS APIs (Feedback & Explainability)
+Drosophila.OS exposes internal APIs (`internal/api`) specifically designed for human-in-the-loop interaction, completely separate from infrastructure monitoring.
 
-## 2. Online Learning (Retroactive Feedback)
-Because a human operator cannot punish a false positive in milliseconds, the system uses a retroactive pipeline:
-1.  **Trigger:** An operator presses a "False Positive" button in Slack/UI containing an `EventID`.
-2.  **API Call:** `POST /api/feedback { "event_id": 1234, "type": "punish" }`
-3.  **Snapshot Retrieval:** The Go engine loads the Trace Log snapshot for `1234` from BadgerDB.
-4.  **Time-Travel STDP:** The engine applies the STDP math to the historical data in the snapshot to calculate the exact `Delta` (how the weights *should* have been adjusted).
-5.  **Application:** The calculated `Delta` is applied to the live in-memory connectome. To prevent *Catastrophic Forgetting* (since the live brain has evolved since the snapshot), the delta is applied gradually using a controlled Learning Rate, maintaining current mathematical stability.
+*   **Explainability API (`GET /api/explain`):** IT operations require transparency. When a Motor Neuron (e.g., "Trigger PagerDuty") fires, this API traverses the internal Trace Logs backward, generating a human-readable Root-Cause trace: *"Motor 'Alert' triggered primarily by intense spike in Sensor 'DB_Latency' and gradual increase in 'RAM_Leak'."*
+*   **Retroactive Feedback API (`POST /api/feedback`):** If the OS triggers a false positive, a human operator flags it. The system receives `{ "event_id": 1234, "type": "punish" }`, pulls the exact historical state snapshot from BadgerDB, calculates the optimal weight adjustments (Time-Travel STDP), and gradually applies them to the live brain to prevent it from repeating the mistake.
 
-## 3. Offline Learning (Genetic Algorithm)
-To train the system on historical data (e.g., logs from last month) without writing explicit rules:
-1.  **Ground Truth:** The user provides a `ground_truth.json` file marking when outages actually occurred (e.g., "Outage from 15:00 to 16:00").
-2.  **Population:** The engine spawns 100 isolated "fly brains" in memory with slightly mutated weights.
-3.  **Fast-Forward Replay:** The engine streams the historical TSDB logs through all 100 brains as fast as the CPU allows.
-4.  **Fitness Function:** Brains that fired the "Panic" motor neuron during the `ground_truth` window gain points. Brains that fired randomly lose points.
-5.  **Evolution:** Top performers are crossed over and mutated for N generations until an optimal weight matrix is achieved.
+## 2. The Core Mechanism: STDP
+Learning uses **Spike-Timing-Dependent Plasticity (STDP)**.
+*   If a sensory spike fires *just before* a motor spike, the synaptic weight between them is **increased** (Reinforcement).
+*   If the sensor fires *after* or randomly, the weight is **decreased** (Depression).
 
-## 4. Chaos Mock-Training (Sandbox)
-Before deploying to production, the brain can be trained in a sandbox. The embedded Mock Server generates synthetic anomalies (e.g., simulated DDoS). The Genetic Algorithm forces the brain to find the correlation between the synthetic noise and the desired action.
-
-## 5. Explainable AI (Trace-to-Text)
-IT businesses do not trust "Black Box" automated actions. To ensure transparency, the system provides an Explainability API. When an incident occurs, the algorithm traverses the Trace Log to find the shortest excitation path from the fired motor neuron back to the sensory receptors, generating a human-readable Root-Cause Analysis report (e.g., "Panic triggered primarily by sudden spikes in DB_Pain and gradual increase in RAM_Vision").
+## 3. Offline Evolution (Genetic Algorithms)
+To map the massive `male-cns` connectome to specific IT infrastructure rules without manual coding:
+1.  **Ground Truth:** Provide a TSDB log and a JSON file marking historical outage windows.
+2.  **Population Simulation:** The engine spawns 100 isolated brain instances with slightly mutated weights in memory.
+3.  **Fast-Forward Replay:** Historical logs are streamed through all instances simultaneously.
+4.  **Fitness & Crossover:** Brains that spiked the correct Motor Neurons during the outage windows score high. Top performers are crossed over, mutating through N generations until optimal weights are achieved.
