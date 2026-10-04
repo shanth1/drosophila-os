@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import type { FlyState } from './state';
 import { createCoffeeCup } from './coffeeCup.ts';
 import { createKeyboard } from './keyboard.ts';
+import { createAnalysisProps } from './analysisProps.ts';
 
 export function createFly(onCoffeeSip?: () => void, onKeyPress?: () => void) {
   const root = new THREE.Group();
@@ -101,6 +102,8 @@ export function createFly(onCoffeeSip?: () => void, onKeyPress?: () => void) {
   body.add(cup.root);
   const keyboard = createKeyboard();
   body.add(keyboard.root);
+  const analysisProps = createAnalysisProps();
+  body.add(analysisProps.root);
   const frontArms = new THREE.Group();
   body.add(frontArms);
   const segmentGeometry = new THREE.CylinderGeometry(0.032, 0.04, 1, 8);
@@ -120,6 +123,7 @@ export function createFly(onCoffeeSip?: () => void, onKeyPress?: () => void) {
   let previousTime: number | null = null;
   let coffeeTime = 0;
   let workingTime = 0;
+  let analysisTime = 0;
   let wasSipping = false;
 
   return {
@@ -128,10 +132,13 @@ export function createFly(onCoffeeSip?: () => void, onKeyPress?: () => void) {
       const alarmed = state.behavior === 'alarmed';
       const drinking = state.behavior === 'coffee';
       const working = state.behavior === 'working';
+      const analyzing = state.behavior === 'analyzing';
       const delta = previousTime === null ? 0 : Math.max(0, Math.min(0.1, time - previousTime));
       previousTime = time;
       coffeeTime = drinking ? coffeeTime + delta * (0.8 + state.activity * 0.4) : 0;
       workingTime = working ? workingTime + delta * (3.5 + state.activity * 7) : 0;
+      analysisTime = analyzing ? analysisTime + delta * (0.6 + state.activity * 1.2) : 0;
+      const inspection = analyzing ? analysisProps.update(analysisTime) : null;
       const typing = working ? keyboard.update(workingTime, onKeyPress) : null;
       if (!working) keyboard.reset();
       const coffeePhase = coffeeTime % 9;
@@ -141,28 +148,36 @@ export function createFly(onCoffeeSip?: () => void, onKeyPress?: () => void) {
       wasSipping = sipping;
       const nod = drinking && coffeePhase >= 8 ? Math.sin((coffeePhase - 8) * Math.PI * 2) * 0.035 : 0;
       const alarmActivity = alarmed ? 0.3 + 1.2 * Math.sqrt(state.activity) : 0;
-      body.position.y = alarmed ? 0.08 + Math.sin(time * 18) * 0.025 * alarmActivity : Math.sin(time * 2) * (working ? 0.006 : 0.025);
+      body.position.y = alarmed ? 0.08 + Math.sin(time * 18) * 0.025 * alarmActivity : Math.sin(time * 2) * (working || analyzing ? 0.006 : 0.025);
       body.rotation.z = Math.sin(time * 11) * 0.045 * alarmActivity;
       body.rotation.x = alarmed ? -0.08 : drinking ? 0.025 + sip * 0.025 : 0;
       head.rotation.y = Math.sin(time * (alarmed ? 9 : 0.7)) * (alarmed ? 0.35 * alarmActivity : drinking ? 0.025 : working ? (typing?.resting ? 0.12 : 0.035) : 0.08);
       head.rotation.x = alarmed ? -0.16 : drinking ? 0.03 + sip * 0.07 + nod : working ? 0.14 + Math.sin(workingTime * 0.5) * 0.025 : 0;
       head.rotation.z = drinking ? Math.sin(time * 0.7) * 0.035 : 0;
+      if (inspection) {
+        head.rotation.y = inspection.scan * 0.06;
+        head.rotation.x = 0.11 + inspection.lean * 0.025;
+        head.rotation.z = -0.05 + inspection.lean * 0.035;
+      }
       wings.forEach((wing, index) => {
-        wing.rotation.z = (index === 0 ? -1 : 1) * (alarmed ? 0.35 + Math.sin(time * 48) * 0.24 * alarmActivity : drinking || working ? 0.04 + Math.sin(time * 2) * 0.025 : 0.08 + Math.sin(time * 4) * state.activity * 0.3);
+        wing.rotation.z = (index === 0 ? -1 : 1) * (alarmed ? 0.35 + Math.sin(time * 48) * 0.24 * alarmActivity : drinking || working || analyzing ? 0.04 + Math.sin(time * 2) * 0.025 : 0.08 + Math.sin(time * 4) * state.activity * 0.3);
       });
       legs.forEach((leg, index) => {
         const front = index % 3 === 0;
-        leg.visible = !((drinking || working) && front);
+        leg.visible = !((drinking || working || analyzing) && front);
         leg.rotation.x = alarmed ? (front ? -0.45 : 0) + Math.sin(time * 16 + index) * 0.12 * alarmActivity : 0;
         leg.rotation.z = alarmed && front ? (index < 3 ? -1 : 1) * 0.18 : 0;
       });
       cup.root.visible = drinking;
       keyboard.root.visible = working;
-      frontArms.visible = drinking || working;
+      analysisProps.root.visible = analyzing;
+      frontArms.visible = drinking || working || analyzing;
       if (drinking) cup.update(time, sip);
-      if (drinking || working) {
+      if (drinking || working || analyzing) {
         frontLimbs.forEach(limb => {
-          if (typing) {
+          if (inspection) {
+            limb.grip.copy(limb.side === 1 ? inspection.magnifierGrip : inspection.reportGrip);
+          } else if (typing) {
             limb.grip.copy(limb.side === -1 ? typing.left : typing.right);
           } else if (limb.side === 1) {
             limb.grip.set(0.32, 0.02, 0).applyEuler(cup.root.rotation).add(cup.root.position);

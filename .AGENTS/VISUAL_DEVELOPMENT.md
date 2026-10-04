@@ -88,6 +88,7 @@ Its embedded UI is the last build, not live source; rebuild for release checks.
 | `ui/src/entities/fly/model.ts` | Original procedural geometry and basic motion |
 | `ui/src/entities/fly/coffeeCup.ts` | Fly-owned mug prop, visible drink, crema, and animated steam wisps |
 | `ui/src/entities/fly/keyboard.ts` | Fly-owned keyboard prop, key travel, alternating typing targets, and thinking pauses |
+| `ui/src/entities/fly/analysisProps.ts` | Fly-owned magnifying glass and decorative chart, inspection motion and grip targets |
 | `ui/src/features/presentation-sound/SoundControls.tsx` | Lab-wide volume/mute, siren synthesis, sip and keyboard sound playback |
 | `ui/src/widgets/world-scene/WorldScene.tsx` | Camera, floor/grid, lights, render loop, cleanup |
 | `ui/src/features/presentation-rules/liveFly.ts` | Live/manual resolution and artistic mappings |
@@ -104,7 +105,7 @@ Its embedded UI is the last build, not live source; rebuild for release checks.
 | `ui/embed.go` | Embedded assets and explicit production page routes |
 
 `FlyState` currently contains `mode: live | manual`, a `behavior`, and normalized
-`activity`. Behaviors are `idle`, `working`, `alarmed`, `coffee`, and `break`.
+`activity`. Behaviors are `idle`, `working`, `analyzing`, `alarmed`, `coffee`, and `break`.
 `createFly()` returns `{root, update(timeSeconds, state)}`. Three.js supplies
 elapsed animation-loop seconds; this is not the host tick or an action-start time.
 The floor lies in XZ, Y is up, and the fly faces roughly negative Z.
@@ -127,8 +128,18 @@ smoothly adjusts an accumulated typing clock. Key/hand choices and intervals are
 randomized, mixing fast runs with short gaps and occasional longer pauses instead
 of a fixed burst/pause cycle. Mechanical clicks combine a short switch impact,
 damped case resonance, and key return, with subtle per-press timbre variation.
-The head looks down at the keys and wings stay calm. Idle, working, coffee, and
-break share the same base lighting/background; alarm retains its warning effects.
+The head looks down at the keys and wings stay calm. Analyzing holds a brass-framed
+magnifier with a convex transmissive lens near one eye and a small clipboard in
+the other front limb. The lens uses Three.js physical screen-space refraction
+with IOR 1.52 and optical thickness for view-dependent magnification/distortion,
+not a separate camera or render target. The clipboard's printed side faces the
+fly, angled upward, with a grip near the lower corner. The chart is decorative,
+not host data or neural anatomy. Head tilts,
+scanning, and prop movement share an accumulated clock; activity smoothly adjusts
+inspection speed. It uses the same fixed-length front limb pose solver and is
+manually selectable in the lab, without an automatic telemetry mapping or sound.
+Idle, working, analyzing, coffee, and break share the same base lighting/background;
+alarm retains its warning effects.
 `alarmed` raises the front legs,
 scans with the head, agitates the wings, and adds a rotating red spotlight pair,
 a pulsing floor ring, and a warm background. Activity scales alarm movement with

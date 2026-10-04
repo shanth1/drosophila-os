@@ -1,4 +1,4 @@
-export const behaviors = ['idle', 'working', 'alarmed', 'coffee', 'break'] as const;
+export const behaviors = ['idle', 'working', 'analyzing', 'alarmed', 'coffee', 'break'] as const;
 export type Behavior = typeof behaviors[number];
 export type FlyState = { mode: 'live' | 'manual'; behavior: Behavior; activity: number };
 export const initialFlyState: FlyState = { mode: 'live', behavior: 'idle', activity: 0.15 };
