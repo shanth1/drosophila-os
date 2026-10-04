@@ -10,6 +10,7 @@ export function SoundControls({ state }: { state: FlyState }) {
   const [volume, setVolume] = useState(0.2);
   const [error, setError] = useState('');
   const lastSip = useRef(0);
+  const lastKeyPress = useRef(0);
 
   useEffect(() => {
     const siren = audio.current;
@@ -27,14 +28,20 @@ export function SoundControls({ state }: { state: FlyState }) {
     const channel = new BroadcastChannel('drosophila.presentation-sound.v1');
     channel.onmessage = (event: MessageEvent<unknown>) => {
       const message = event.data;
-      if (!enabled || state.behavior !== 'coffee' || !audio.current || !message || typeof message !== 'object') return;
+      if (!enabled || !audio.current || !message || typeof message !== 'object') return;
       const signal = message as Record<string, unknown>;
-      if (signal.type !== 'coffee.sip' || typeof signal.timestamp !== 'number' || !Number.isFinite(signal.timestamp)) return;
+      if (typeof signal.timestamp !== 'number' || !Number.isFinite(signal.timestamp)) return;
       const age = Date.now() - signal.timestamp;
       if (age < 0 || age > 500) return;
-      if (signal.timestamp - lastSip.current < 1000) return;
-      lastSip.current = signal.timestamp;
-      playSip(audio.current);
+      if (signal.type === 'coffee.sip' && state.behavior === 'coffee') {
+        if (signal.timestamp - lastSip.current < 1000) return;
+        lastSip.current = signal.timestamp;
+        playSip(audio.current);
+      } else if (signal.type === 'working.keypress' && state.behavior === 'working') {
+        if (signal.timestamp - lastKeyPress.current < 25) return;
+        lastKeyPress.current = signal.timestamp;
+        playKeyPress(audio.current);
+      }
     };
     return () => channel.close();
   }, [enabled, state.behavior]);
@@ -150,4 +157,33 @@ function playSip({ context, master }: PresentationAudio) {
   noise.start(start);
   gulp.start(start);
   gulp.stop(start + duration);
+}
+
+function playKeyPress({ context, master }: PresentationAudio) {
+  if (context.state !== 'running') return;
+  const duration = 0.09;
+  const buffer = context.createBuffer(1, Math.ceil(context.sampleRate * duration), context.sampleRate);
+  const samples = buffer.getChannelData(0);
+  const bodyFrequency = 260 + Math.random() * 140;
+  const switchFrequency = 1200 + Math.random() * 700;
+  const releaseTime = 0.025 + Math.random() * 0.025;
+  const strength = 0.65 + Math.random() * 0.35;
+  let previousNoise = 0;
+  for (let index = 0; index < samples.length; index++) {
+    const time = index / context.sampleRate;
+    const noise = Math.random() * 2 - 1;
+    const attack = 1 - Math.exp(-time / 0.0003);
+    const click = (noise - previousNoise) * 0.2 * Math.exp(-time / 0.002);
+    const body = Math.sin(time * bodyFrequency * Math.PI * 2) * 0.55 * Math.exp(-time / 0.012);
+    const switchClick = Math.sin(time * switchFrequency * Math.PI * 2) * 0.16 * Math.exp(-time / 0.004);
+    const release = time >= releaseTime ? noise * 0.17 * Math.exp(-(time - releaseTime) / 0.003) : 0;
+    // Brief switch impact, damped case resonance, and a quieter key return.
+    samples[index] = ((click + body + switchClick) * attack + release) * strength;
+    previousNoise = noise;
+  }
+  const click = context.createBufferSource();
+  click.buffer = buffer;
+  click.connect(master);
+  click.onended = () => click.disconnect();
+  click.start();
 }

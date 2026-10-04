@@ -12,10 +12,10 @@ export function Lab({ state, send, supported }: { state: FlyState; send: (state:
       <input type="range" min="0" max="1" step="0.01" value={state.activity} onChange={event => send({ ...state, mode: 'manual', activity: Number(event.target.value) })} />
     </label><button onClick={() => send({ ...initialFlyState })}>Return to live telemetry</button>
     <p className="muted">Alarmed stays restless even at zero activity. Higher activity intensifies panic and shifts lighting from yellow to red; at 60%, the rotating beacon and enabled siren join in.</p>
-    <p className="muted">Current mode: {state.mode}. Manual mode overrides host-driven animation; telemetry continues updating. Coffee rests a steaming mug beside the fly, gestures with the free limb, and takes occasional sips; activity gently adjusts the pace. Break turns the fly away. Full action sequences and event injection are later milestones.</p></section>
+    <p className="muted">Current mode: {state.mode}. Manual mode overrides host-driven animation; telemetry continues updating. Working types in fast, irregular runs with natural gaps; activity adjusts typing speed. Coffee rests a steaming mug beside the fly, gestures with the free limb, and takes occasional sips; activity gently adjusts the pace. Break turns the fly away. Full action sequences and event injection are later milestones.</p></section>
     <section className="panel"><h2>Sound</h2>
       <SoundControls state={state} />
-      <p className="muted">Controls all presentation sounds: alarm siren and coffee sips. Sound plays from this laboratory tab; keep it open with the dashboard on the same origin. Coffee sounds follow actual sips in the scene.</p>
+      <p className="muted">Controls all presentation sounds: alarm siren, coffee sips, and keyboard clicks. Sound plays from this laboratory tab; keep it open with the dashboard on the same origin. Sip and typing sounds follow the actual scene animation.</p>
     </section>
     <a href="/" target="_blank" rel="noreferrer">Open dashboard ↗</a>
   </main>;

@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import * as THREE from 'three';
 import { createFly } from './model.ts';
+import { createKeyboard } from './keyboard.ts';
 import type { FlyState } from './state.ts';
 
 test('coffee signals one sound per sip without restarting when activity changes', () => {
@@ -22,14 +23,62 @@ test('coffee signals one sound per sip without restarting when activity changes'
     fly.update(18.2, state);
     assert.equal(sips, 2, 'entering coffee begins with a rest, not a replayed sip');
   } finally {
-    const geometries = new Set<THREE.BufferGeometry>();
-    const materials = new Set<THREE.Material>();
-    fly.root.traverse(object => {
-      if (!(object instanceof THREE.Mesh)) return;
-      geometries.add(object.geometry);
-      for (const material of Array.isArray(object.material) ? object.material : [object.material]) materials.add(material);
-    });
-    geometries.forEach(geometry => geometry.dispose());
-    materials.forEach(material => material.dispose());
+    dispose(fly.root);
   }
 });
+
+test('typing has irregular gaps, silent pauses, and no replay after a stalled frame', () => {
+  let seed = 42;
+  const random = () => {
+    seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
+    return seed / 0x100000000;
+  };
+  const keyboard = createKeyboard(random);
+  let clicks = 0;
+  let clock = 0;
+  const presses: number[] = [];
+  const click = () => { clicks++; presses.push(clock); };
+  try {
+    let silentFrames = 0;
+    for (let frame = 0; frame < 9600; frame++) {
+      clock = frame / 80;
+      const before = clicks;
+      if (keyboard.update(clock, click).resting) {
+        assert.equal(clicks, before, 'no sound during a pause');
+        silentFrames++;
+      }
+    }
+    assert.ok(clicks > 35);
+    assert.ok(silentFrames > 0);
+    const gaps = presses.slice(1).map((press, index) => press - presses[index]);
+    assert.ok(Math.min(...gaps) < 1.5, 'fast runs are present');
+    assert.ok(Math.max(...gaps) > 7, 'occasional longer pauses are present');
+    assert.ok(new Set(gaps.map(gap => Math.round(gap * 10))).size > 10, 'the rhythm is not periodic');
+    const beforeReset = clicks;
+    keyboard.reset();
+    clock = 0;
+    keyboard.update(0, click);
+    assert.equal(clicks, beforeReset, 'reset does not replay a keypress');
+    clock = 1000;
+    keyboard.update(clock, click);
+    assert.equal(clicks, beforeReset, 'a stalled frame does not burst queued clicks');
+    clock = 1000.25;
+    keyboard.update(clock, click);
+    keyboard.update(clock, click);
+    assert.equal(clicks, beforeReset + 1, 'only one click for the new stroke');
+  } finally {
+    dispose(keyboard.root);
+  }
+});
+
+function dispose(root: THREE.Object3D) {
+  const geometries = new Set<THREE.BufferGeometry>();
+  const materials = new Set<THREE.Material>();
+  root.traverse(object => {
+    if (!(object instanceof THREE.Mesh)) return;
+    geometries.add(object.geometry);
+    for (const material of Array.isArray(object.material) ? object.material : [object.material]) materials.add(material);
+  });
+  geometries.forEach(geometry => geometry.dispose());
+  materials.forEach(material => material.dispose());
+}
