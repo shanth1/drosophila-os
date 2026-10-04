@@ -15,9 +15,10 @@ func TestParseConfig(t *testing.T) {
 		args []string
 		want Config
 	}{
-		{"defaults", nil, Config{Mode: "demo", BrainPath: "data/male_cns.bin", TickLimit: 3}},
-		{"overrides", []string{"-mode", "brain", "-brain", "custom.bin", "-ticks", "10"}, Config{Mode: "brain", BrainPath: "custom.bin", TickLimit: 10}},
-		{"unlimited", []string{"-ticks", "0"}, Config{Mode: "demo", BrainPath: "data/male_cns.bin", TickLimit: 0}},
+		{"defaults", nil, Config{Mode: "demo", BrainPath: "data/male_cns.bin", TickLimit: 3, ListenAddress: "127.0.0.1:8080"}},
+		{"overrides", []string{"-mode", "brain", "-brain", "custom.bin", "-ticks", "10"}, Config{Mode: "brain", BrainPath: "custom.bin", TickLimit: 10, ListenAddress: "127.0.0.1:8080"}},
+		{"unlimited", []string{"-ticks", "0"}, Config{Mode: "demo", BrainPath: "data/male_cns.bin", TickLimit: 0, ListenAddress: "127.0.0.1:8080"}},
+		{"ui", []string{"-mode", "ui", "-listen", "127.0.0.1:8090"}, Config{Mode: "ui", BrainPath: "data/male_cns.bin", TickLimit: 3, ListenAddress: "127.0.0.1:8090"}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			got, err := parseConfig(tc.args, io.Discard)

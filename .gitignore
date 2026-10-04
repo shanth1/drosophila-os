@@ -4,3 +4,5 @@ plugins/compiled
 .env
 data/
 bin/
+ui/node_modules/
+ui/dist/

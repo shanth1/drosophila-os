@@ -1,20 +1,32 @@
 .DEFAULT_GOAL := build
 
-.PHONY: plugins build run test check clean wasm-lab snn-lab pipeline-lab
+.PHONY: plugins ui-install ui-dev ui-build ui-run build run test check clean wasm-lab snn-lab pipeline-lab
+
+ui-install:
+	npm --prefix ui ci
+
+ui-dev: ui-install
+	npm --prefix ui run dev
+
+ui-build: ui-install
+	npm --prefix ui run build
+
+ui-run: build
+	./bin/drosophila -mode ui $(ARGS)
 
 plugins:
 	mkdir -p plugins/compiled
 	GOOS=wasip1 GOARCH=wasm CGO_ENABLED=0 go build -mod=readonly -buildmode=c-shared -o plugins/compiled/sensor_random.wasm ./plugins/src/sensor_random
 	GOOS=wasip1 GOARCH=wasm CGO_ENABLED=0 go build -mod=readonly -buildmode=c-shared -o plugins/compiled/sensor_fixed.wasm ./plugins/src/sensor_fixed
 
-build: plugins
+build: plugins ui-build
 	mkdir -p bin
 	CGO_ENABLED=0 go build -mod=readonly -o bin/drosophila ./cmd/drosophila
 
 run: build
 	./bin/drosophila $(ARGS)
 
-test: plugins
+test: plugins ui-build
 	CGO_ENABLED=0 go test -mod=readonly ./...
 
 check: test

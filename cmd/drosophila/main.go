@@ -40,8 +40,10 @@ func run(ctx context.Context, cfg Config, logger *slog.Logger) error {
 		return runDemo(ctx, cfg, logger)
 	case "brain":
 		return runBrain(ctx, cfg, logger)
+	case "ui":
+		return runUI(ctx, cfg, logger)
 	default:
-		return fmt.Errorf("mode must be demo or brain")
+		return fmt.Errorf("mode must be demo, brain, or ui")
 	}
 }
 
