@@ -1,5 +1,15 @@
 # Frontend Architecture and Roadmap
 
+## MVP readiness and new sessions
+
+The minimal end-to-end development MVP is complete: a controlled HTTP system,
+real host/WASM/SNN processing, versioned telemetry, and live fly reactions.
+Appearance, emotions, props, environment objects, and artistic mappings can now
+be developed as an independent frontend workstream. Begin a fresh visual session
+with `VISUAL_DEVELOPMENT.md` for setup, source locations, extension recipes,
+current limitations, and verification. Operational incident detection/effectors
+remain future backend work; scene infrastructure objects are future visual work.
+
 ## Current implementation
 
 The initial shell, procedural fly, orbit controls, three routes, basic cross-tab
@@ -70,10 +80,12 @@ registered with ordinary TypeScript factories at build time.
 `host message -> validation/adapter -> application event -> presentation rules
 -> fly controller and world effects`.
 
-The fly exposes explicit controls for activity, attention, gestures, and
-behavior sequences. Its behavior controller arbitrates priorities and prevents
-conflicting animations. Urgent behavior can interrupt idle sequences. Repeated
-events need coalescing/cooldowns rather than one animation per neural spike.
+Currently the fly accepts mode, behavior, and activity through a basic update
+function. As behaviors grow, add explicit attention, gesture, and sequence controls
+through a focused controller that arbitrates priorities and prevents conflicting
+animations. Urgent behavior should interrupt idle sequences. General sequencing
+and arbitration are not implemented yet. Repeated events need coalescing/cooldowns
+rather than one animation per neural spike; the current alert uses a recent-event window.
 Backend observations and brain reactions remain distinguishable: an unhealthy
 resource must not appear healthy merely because the brain has not reacted.
 Disconnection is distinct from health; silence does not imply normal operation.
@@ -118,7 +130,8 @@ real SNN against a controllable test HTTP service. This service simulates the
 observed world (latency, failures, recovery), not the frontend API. Avoid a
 parallel mock backend that duplicates the production API.
 
-`/lab` is a graphics tool: directly invoke gestures or inject presentation events.
+`/lab` currently selects behavior/activity directly. Presentation event injection
+and arbitrary world-effect controls are future extensions of this graphics tool.
 Use BroadcastChannel to control a dashboard in another same-origin tab, without
 backend involvement. Provide explicit live/manual modes so real input cannot
 overwrite debug state. Label manual mode visibly. Test scenarios eventually use

@@ -1,5 +1,10 @@
 # Drosophila.OS
 
+The minimal end-to-end development MVP is ready for independent visual work:
+real HTTP observations drive WASM/SNN processing, telemetry, and live fly reactions.
+For a fresh session focused on appearance, emotions, animation, and environment,
+read `.AGENTS/VISUAL_DEVELOPMENT.md` and `.AGENTS/FRONTEND.md`.
+
 A spiking neural network (SNN) prototype with an embedded web UI and an isolated
 WebAssembly sensor. This is not yet a monitoring service or a chaos-engineering
 tool. The default application demonstrates:
