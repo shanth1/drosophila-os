@@ -11,11 +11,7 @@ import (
 	"github.com/shanth1/drosophila-os/ui"
 )
 
-func runUI(ctx context.Context, cfg Config, logger *slog.Logger) error {
-	listener, err := net.Listen("tcp", cfg.ListenAddress)
-	if err != nil {
-		return err
-	}
+func serveUI(ctx context.Context, listener net.Listener, logger *slog.Logger) error {
 	server := &http.Server{Handler: ui.Handler(), ReadHeaderTimeout: 5 * time.Second}
 	result := make(chan error, 1)
 	go func() { result <- server.Serve(listener) }()

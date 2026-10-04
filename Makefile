@@ -11,8 +11,7 @@ ui-dev: ui-install
 ui-build: ui-install
 	npm --prefix ui run build
 
-ui-run: build
-	./bin/drosophila -mode ui $(ARGS)
+ui-run: run
 
 plugins:
 	mkdir -p plugins/compiled

@@ -6,6 +6,7 @@ import (
 	"flag"
 	"fmt"
 	"log/slog"
+	"net"
 	"os"
 	"os/signal"
 	"syscall"
@@ -35,15 +36,43 @@ func main() {
 }
 
 func run(ctx context.Context, cfg Config, logger *slog.Logger) error {
+	if cfg.Mode != "test" && cfg.Mode != "brain" {
+		return fmt.Errorf("mode must be test or brain")
+	}
+	if ctx.Err() != nil {
+		return nil
+	}
+	// Bind before starting the backend, so an occupied address fails immediately.
+	listener, err := net.Listen("tcp", cfg.ListenAddress)
+	if err != nil {
+		return fmt.Errorf("listen: %w", err)
+	}
+	return runWithListener(ctx, cfg, logger, listener)
+}
+
+// runWithListener owns both components and waits for both to finish before returning.
+func runWithListener(ctx context.Context, cfg Config, logger *slog.Logger, listener net.Listener) error {
+	defer listener.Close()
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	results := make(chan error, 2)
+	go func() { results <- serveUI(ctx, listener, logger) }()
+	go func() { results <- runBackend(ctx, cfg, logger) }()
+	first := <-results
+	// Failure, an explicit tick limit, or Ctrl+C ends the entire application.
+	cancel()
+	second := <-results
+	return errors.Join(first, second)
+}
+
+func runBackend(ctx context.Context, cfg Config, logger *slog.Logger) error {
 	switch cfg.Mode {
-	case "demo":
-		return runDemo(ctx, cfg, logger)
+	case "test":
+		return runTestRuntime(ctx, cfg, logger)
 	case "brain":
 		return runBrain(ctx, cfg, logger)
-	case "ui":
-		return runUI(ctx, cfg, logger)
 	default:
-		return fmt.Errorf("mode must be demo, brain, or ui")
+		return fmt.Errorf("mode must be test or brain")
 	}
 }
 

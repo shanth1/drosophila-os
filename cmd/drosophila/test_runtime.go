@@ -14,7 +14,7 @@ import (
 	"github.com/tetratelabs/wazero/imports/wasi_snapshot_preview1"
 )
 
-func runDemo(ctx context.Context, cfg Config, logger *slog.Logger) (err error) {
+func runTestRuntime(ctx context.Context, cfg Config, logger *slog.Logger) (err error) {
 	// A (0) accumulates input; B (1) is the output. Leak is disabled.
 	e := &engine.Engine{
 		Conn: &engine.Connectome{
@@ -42,7 +42,7 @@ func runDemo(ctx context.Context, cfg Config, logger *slog.Logger) (err error) {
 			if ctx.Err() != nil {
 				reason = "context canceled"
 			}
-			logger.Info("demo stopped", "reason", reason, "ticks", tickNum, "events", events)
+			logger.Info("test runtime stopped", "reason", reason, "ticks", tickNum, "events", events)
 		}
 	}()
 	if _, err := wasi_snapshot_preview1.Instantiate(ctx, runtime); err != nil {
@@ -63,7 +63,7 @@ func runDemo(ctx context.Context, cfg Config, logger *slog.Logger) (err error) {
 
 	ticker := time.NewTicker(250 * time.Millisecond)
 	defer ticker.Stop()
-	logger.Info("demo started", "tick_interval", 250*time.Millisecond, "tick_limit", cfg.TickLimit,
+	logger.Info("test runtime started", "tick_interval", 250*time.Millisecond, "tick_limit", cfg.TickLimit,
 		"sensor", "sensor_fixed", "neurons", 2, "synapses", 1)
 	for cfg.TickLimit == 0 || tickNum < cfg.TickLimit {
 		select {
@@ -72,18 +72,14 @@ func runDemo(ctx context.Context, cfg Config, logger *slog.Logger) (err error) {
 		case <-ticker.C:
 		}
 		tickNum++
-		// Repeat the pipeline's two input samples followed by one propagation-only tick.
-		pollSensor := tickNum%3 != 0
-		if pollSensor {
-			if _, err := sensorTick.Call(ctx); err != nil {
-				if ctx.Err() != nil {
-					return nil
-				}
-				return fmt.Errorf("fixed sensor tick: %w", err)
+		if _, err := sensorTick.Call(ctx); err != nil {
+			if ctx.Err() != nil {
+				return nil
 			}
+			return fmt.Errorf("fixed sensor tick: %w", err)
 		}
 		e.Tick()
-		logger.Info("demo state", "tick", tickNum, "sensor_polled", pollSensor,
+		logger.Debug("test runtime state", "tick", tickNum,
 			"voltage", e.State.Voltages, "pending", e.State.PendingVoltages, "fired", e.State.Fired)
 		if e.State.Fired[1] {
 			events++

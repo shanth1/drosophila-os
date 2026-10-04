@@ -32,7 +32,7 @@ func writeTestBrain(t *testing.T, neurons uint32) string {
 }
 
 func TestRunTickLimit(t *testing.T) {
-	cfg := Config{Mode: "brain", BrainPath: writeTestBrain(t, 101), TickLimit: 1}
+	cfg := Config{Mode: "brain", BrainPath: writeTestBrain(t, 101), TickLimit: 1, ListenAddress: "127.0.0.1:0"}
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 	var output bytes.Buffer
@@ -54,11 +54,11 @@ func TestRunTickLimit(t *testing.T) {
 func TestRunRejectsInvalidBrain(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	missing := filepath.Join(t.TempDir(), "missing.bin")
-	err := run(context.Background(), Config{Mode: "brain", BrainPath: missing, TickLimit: 1}, logger)
+	err := run(context.Background(), Config{Mode: "brain", BrainPath: missing, TickLimit: 1, ListenAddress: "127.0.0.1:0"}, logger)
 	if !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("expected missing brain error, got %v", err)
 	}
-	err = run(context.Background(), Config{Mode: "brain", BrainPath: writeTestBrain(t, 1), TickLimit: 1}, logger)
+	err = run(context.Background(), Config{Mode: "brain", BrainPath: writeTestBrain(t, 1), TickLimit: 1, ListenAddress: "127.0.0.1:0"}, logger)
 	if err == nil || !strings.Contains(err.Error(), "requires neuron index 100") {
 		t.Fatalf("expected incompatible sensor target error, got %v", err)
 	}

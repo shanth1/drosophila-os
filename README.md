@@ -1,6 +1,6 @@
 # Drosophila.OS
 
-A console prototype of a spiking neural network (SNN) driven by an isolated
+A spiking neural network (SNN) prototype with an embedded web UI and an isolated
 WebAssembly sensor. This is not yet a monitoring service or a chaos-engineering
 tool. The default application demonstrates:
 
@@ -30,13 +30,14 @@ telemetry; it does not fabricate neural activity.
 Build and serve the embedded UI:
 
 ```sh
-make ui-run
+make run
 # http://127.0.0.1:8080
-make ui-run ARGS="-listen 127.0.0.1:8090"
+make run ARGS="-listen 127.0.0.1:8090"
 ```
 
-The resulting binary serves the UI independently of the temporary console demo
-and runs until interrupted. All assets are embedded; Node and a CDN are not
+The resulting binary always serves the UI alongside the selected backend and
+runs until interrupted by default. `make ui-run` is an alias for `make run`.
+There is no separate UI mode. All assets are embedded; Node and a CDN are not
 needed at runtime. `make build` and `make check` now build frontend assets too.
 Before invoking Go builds/tests directly on a fresh checkout, run
 `make plugins ui-build`. Architectural decisions and remaining milestones are
@@ -45,7 +46,7 @@ documented in `.AGENTS/FRONTEND.md`.
 ## Quick Start
 
 Requirements: Go 1.25.5 or newer, Make, Node.js, and npm for the combined build. No CGO, TinyGo, dataset, or credentials
-are needed for the default demo. Run commands from the repository root:
+are needed for the default test runtime. Run commands from the repository root:
 
 ```sh
 make run
@@ -53,17 +54,19 @@ make run
 
 The application uses a fixed sensor sending `0.5` to neuron A, connected to
 output neuron B with weight `1`. Both thresholds are `1`; leak is disabled.
-It executes three sequential steps, 250 ms apart:
+The sensor is sampled on every tick, 250 ms apart. Initial steps are:
 
 | Tick | Sensor polled? | Voltage [A, B] | Pending [A, B] | Fired [A, B] |
 | --- | --- | --- | --- | --- |
 | 1 | Yes | `[0.5, 0]` | `[0, 0]` | `[false, false]` |
 | 2 | Yes | `[0, 0]` | `[0, 1]` | `[true, false]` |
-| 3 | No | `[0, 0]` | `[0, 0]` | `[false, true]` |
+| 3 | Yes | `[0.5, 0]` | `[0, 0]` | `[false, true]` |
+| 4 | Yes | `[0, 0]` | `[0, 1]` | `[true, false]` |
+| 5 | Yes | `[0.5, 0]` | `[0, 0]` | `[false, true]` |
 
 On tick 3 the host logs `msg="output event" tick=3 neuron=1`. This is a test
-event, not an incident detector or WASM effector. Run more steps or repeat until
-Ctrl+C:
+event, not an incident detector or WASM effector. By default the backend and UI
+continue until Ctrl+C. An explicit tick limit stops the whole application:
 
 ```sh
 make run ARGS="-ticks 6"
@@ -71,12 +74,16 @@ make run ARGS="-ticks 0"
 make check
 ```
 
-The three-step sequence repeats, producing events on ticks 3, 6, 9, and so on.
+Output events occur on ticks 3, 5, 7, and so on.
 Sensor calls, engine ticks, and output observation share one sequential loop;
-the demo does not use the asynchronous sensor Manager. Read
-`cmd/drosophila/demo.go` and `plugins/src/sensor_fixed/main.go` to follow it.
+the test runtime does not use the asynchronous sensor Manager. Read
+`cmd/drosophila/test_runtime.go` and `plugins/src/sensor_fixed/main.go` to follow it.
 `examples/pipeline` remains an independent deterministic test of the same
-signal path, without the application's timer or embedded sensor.
+signal path, without the application's timer or embedded sensor. The old
+three-step demo is no longer an application mode. The current test runtime still
+uses a fixed input; a controllable external HTTP service and real HTTP sensor
+are the next integration step. Browser presentation is not connected to the
+running engine yet.
 
 ## Biological Graph Mode
 
@@ -130,7 +137,7 @@ make check
 
 The random sensor targets neuron index `100`, so its graph needs at least 101
 neurons. This index is not a configured biological receptor or incident detector.
-Ctrl+C stops the host and its sensor. A sensor failure stops the application with a
+Ctrl+C stops HTTP, the host, and its sensor. A sensor failure stops the application with a
 nonzero exit status rather than silently reporting success.
 Array indices follow the first appearance of biological IDs in the CSV; index
 `100` does not identify the same biological neuron across reordered exports.
@@ -153,7 +160,7 @@ and executes this binary, forwarding `ARGS` as command-line arguments.
 or Go's build cache. WASM stays under `plugins/` because `go:embed` paths cannot
 use `../`.
 
-Both WASM sensors are embedded. The default demo is self-contained and can run
+Both WASM sensors are embedded. The default test runtime is self-contained and can run
 from any working directory; its graph is constructed in memory. Brain mode
 still needs an external graph, whose default path is relative to the working
 directory, not the executable.
@@ -162,15 +169,15 @@ Always rebuild the sensor after changing its source. `go run ./cmd/drosophila`
 alone uses the previously generated WASM. A command-style WASM build without
 `-buildmode=c-shared` is incompatible with this loader: it has `_start` instead
 of the required `_initialize` and can fail with `runtime.notInitialized`.
-On a fresh checkout, run `make plugins` before building the host or running
-`go test ./...` directly: `go:embed` requires both generated sensor files.
+On a fresh checkout, run `make plugins ui-build` before building the host or running
+`go test ./...` directly: `go:embed` requires generated sensor and frontend files.
 
 ### Configuration And Logs
 
-Only CLI flags configure the host: `-mode` defaults to `demo` (or select `brain` or `ui`),
+Only CLI flags configure the host: `-mode` defaults to `test` (or select `brain`),
 `-brain` defaults to `data/male_cns.bin` and is used only in brain mode,
-and `-ticks` defaults to `3` (`0` runs until interrupted). UI mode uses `-listen`
-(default `127.0.0.1:8080`) and runs until interrupted, independent of tick limits. For the previous
+and `-ticks` defaults to `0` (runs until interrupted). HTTP/UI always uses `-listen`
+(default `127.0.0.1:8080`). A positive tick limit stops both HTTP and the backend. For the previous
 300-tick large-graph run, specify `-mode brain -ticks 300`. No YAML file or
 environment overrides are used. `cmd/drosophila/config.go` parses and validates
 flags using a local `FlagSet`; `run(ctx, cfg, logger)` executes the application
@@ -189,11 +196,12 @@ There is no log-file rotation, custom logging wrapper, or JSON-output flag.
 
 ## Follow One Signal
 
-For the default demo, read `cmd/drosophila/demo.go` first. For brain mode, follow
+For the default test runtime, read `cmd/drosophila/test_runtime.go` first. For brain mode, follow
 these files rather than starting with the architecture roadmap:
 
 1. `cmd/drosophila/`: `config.go` parses CLI flags; `main.go` installs signal
-   handlers, creates the logger, and selects `runDemo` or `runBrain`.
+   handlers, creates the logger, and supervises HTTP together with `runTestRuntime`
+   or `runBrain`. `serve.go` handles HTTP serving and bounded graceful shutdown.
 2. `plugins/src/sensor_random/main.go`: exports `tick()` and sends a random
    `float32` in `[0, 1)` to neuron `100` every 50 ms.
 3. `internal/wasm/abi_input.go`: implements `env.host_emit_signal(i32, i32)`.
@@ -213,7 +221,7 @@ these files rather than starting with the architecture roadmap:
    to dense indices and scales weights by `0.05`; `binary.go` writes the graph.
 
 In brain mode, two clocks are independent: sensor sampling is every 50 ms;
-biological ticks are every 10 ms. The demo uses one 250 ms clock. These are
+biological ticks are every 10 ms. The test runtime uses one 250 ms clock. These are
 scheduling targets, not hard real-time guarantees.
 
 ### Engine Data Model
@@ -241,7 +249,7 @@ edge count, `uint32` offsets (neurons + 1), `uint32` targets (edges), and
 
 Implemented: graph import/loading, simplified LIF engine, atomic input buffer,
 embedded fixed/random sensors, WASM input ABI, console activity, and graceful
-shutdown. The default demo produces deterministic output events from a small
+shutdown. The default test runtime produces deterministic output events from a small
 network; the biological graph remains an experimental mode.
 
 Implemented frontend preview: embedded HTTP static serving, procedural fly,
@@ -282,7 +290,8 @@ ABI or the HTTP host API.
 `make check` rebuilds the sensor, runs tests, and runs `go vet`. Tests cover
 graph validation, CSV import and binary roundtrips, leak/threshold/reset behavior,
 next-tick propagation, buffer overwrite/reset, embedded WASM lifecycle, and
-two complete cycles of the default application's demo.
+six steps of the default fixed-sensor pipeline, always-on HTTP in both backend
+modes, shared shutdown, component failures, and occupied listen addresses.
 They do not establish biological validity, incident-detection quality, or
 production performance of the large graph.
 

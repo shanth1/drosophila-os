@@ -15,10 +15,10 @@ func TestParseConfig(t *testing.T) {
 		args []string
 		want Config
 	}{
-		{"defaults", nil, Config{Mode: "demo", BrainPath: "data/male_cns.bin", TickLimit: 3, ListenAddress: "127.0.0.1:8080"}},
+		{"defaults", nil, Config{Mode: "test", BrainPath: "data/male_cns.bin", TickLimit: 0, ListenAddress: "127.0.0.1:8080"}},
 		{"overrides", []string{"-mode", "brain", "-brain", "custom.bin", "-ticks", "10"}, Config{Mode: "brain", BrainPath: "custom.bin", TickLimit: 10, ListenAddress: "127.0.0.1:8080"}},
-		{"unlimited", []string{"-ticks", "0"}, Config{Mode: "demo", BrainPath: "data/male_cns.bin", TickLimit: 0, ListenAddress: "127.0.0.1:8080"}},
-		{"ui", []string{"-mode", "ui", "-listen", "127.0.0.1:8090"}, Config{Mode: "ui", BrainPath: "data/male_cns.bin", TickLimit: 3, ListenAddress: "127.0.0.1:8090"}},
+		{"unlimited", []string{"-ticks", "0"}, Config{Mode: "test", BrainPath: "data/male_cns.bin", TickLimit: 0, ListenAddress: "127.0.0.1:8080"}},
+		{"test address", []string{"-mode", "test", "-listen", "127.0.0.1:8090"}, Config{Mode: "test", BrainPath: "data/male_cns.bin", TickLimit: 0, ListenAddress: "127.0.0.1:8090"}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			got, err := parseConfig(tc.args, io.Discard)
@@ -33,6 +33,7 @@ func TestParseConfigRejectsInvalidArguments(t *testing.T) {
 	for _, args := range [][]string{
 		{"-ticks", "-1"}, {"-ticks", "invalid"}, {"-brain", ""},
 		{"-unknown"}, {"-brain"}, {"unexpected"}, {"-mode", "unknown"},
+		{"-mode", "demo"}, {"-mode", "ui"}, {"-listen", ""},
 	} {
 		var output bytes.Buffer
 		if _, err := parseConfig(args, &output); err == nil {
@@ -50,7 +51,7 @@ func TestParseConfigHelp(t *testing.T) {
 	if !errors.Is(err, flag.ErrHelp) {
 		t.Fatalf("expected help, got %v", err)
 	}
-	for _, text := range []string{"Usage of drosophila", "-mode", "-brain", "-ticks", "default 3"} {
+	for _, text := range []string{"Usage of drosophila", "-mode", "-brain", "-ticks", "-listen", `default "test"`, "0 runs until Ctrl+C"} {
 		if !strings.Contains(output.String(), text) {
 			t.Fatalf("help missing %q: %s", text, output.String())
 		}

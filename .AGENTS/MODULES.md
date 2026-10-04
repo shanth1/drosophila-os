@@ -5,12 +5,12 @@ implemented. Multi-channel application mappings, proprietary dynamic loading,
 and effectors are roadmap items. The HTTP host API is not implemented.
 
 ## 1. Plugin Isolation and Granularity (The UNIX Way)
-Drosophila.OS uses WebAssembly (WASM) for the fixed demo sensor and the random brain-mode sensor. The host application (Go) runs them via the `wazero` engine; WASM effectors are planned.
+Drosophila.OS uses WebAssembly (WASM) for the fixed test sensor and the random brain-mode sensor. The host application (Go) runs them via the `wazero` engine; WASM effectors are planned.
 
 **Rule of Granularity:** One module does exactly one job.
 Do not create monolithic "ServerAnalyzer" plugins. Create `sensor_cpu.wasm`, `sensor_ram.wasm`, and `action_slack.wasm`. They must not know about each other.
 
-**Loading Strategy:** Both sensors are embedded directly into the binary (`//go:embed`). The demo calls its fixed sensor synchronously; brain mode polls its random sensor through Manager. A unified module pool and proprietary plugins loaded dynamically from disk are roadmap goals, not implemented behavior. Their privilege model remains to be designed.
+**Loading Strategy:** Both sensors are embedded directly into the binary (`//go:embed`). The continuous test runtime calls its fixed sensor synchronously every tick; brain mode polls its random sensor through Manager. Both run alongside HTTP/UI. A unified module pool and proprietary plugins loaded dynamically from disk are roadmap goals, not implemented behavior. Their privilege model remains to be designed.
 
 ## 2. Multi-channeling (Critical Concept for Sensors)
 A sensor module must never mix different contexts into a single metric.

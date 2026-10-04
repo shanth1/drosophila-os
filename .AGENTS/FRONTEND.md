@@ -4,8 +4,13 @@
 
 The initial shell, procedural fly, orbit controls, three routes, basic cross-tab
 behavior previews, and embedded UI server are implemented. Run `make ui-dev` for
-Vite or `make ui-run` for the binary. The temporary standalone `-mode ui` does
-not run the SNN. The `/brain` page is an explicit placeholder.
+Vite or `make run` for the binary (`make ui-run` is an alias). HTTP/UI now starts
+alongside the backend in every mode. The default `test` backend continuously
+samples the embedded fixed sensor into a two-neuron SNN; `brain` retains the
+experimental graph/random sensor. There is no `demo` or standalone `ui` mode.
+`-ticks` defaults to zero (unlimited); explicit finite runs stop both components.
+Failure of either component cancels and joins the other. The `/brain` page is an
+explicit placeholder, and frontend telemetry is not connected yet.
 
 The current laboratory controls behavior/activity directly. Event injection,
 priority arbitration, full coffee/break sequences, props beyond a cup, and live
@@ -129,9 +134,10 @@ Node is a build/development dependency only; the delivered Go binary needs no
 Node process or CDN. Build frontend assets before compiling the embedding package.
 Go serves the SPA routes and embedded resources through `net/http`.
 
-The current three-tick CLI demo is temporary and must not shape frontend lifetime.
-Use an explicit long-running UI server mode initially. Removing the demo and
-integrating server/engine lifecycle are separate backend changes.
+HTTP/UI is an always-on part of application lifetime, not a backend mode.
+The three-tick demo has been replaced by continuous fixed-sensor test execution.
+The next stage replaces this fixed input with a controllable external HTTP system
+and real sensor; `brain` is still experimental, not a production environment mode.
 
 ## Implementation milestones
 
@@ -143,6 +149,12 @@ integrating server/engine lifecycle are separate backend changes.
    sensor/SNN, versioned host data, frontend adaptation and visible reaction.
 6. Real brain telemetry and inspection, starting with aggregates and selections.
 7. Additional props, environment objects, behavior sequences, effects and sound.
+
+Milestone 5 is being delivered in reviewable stages: (a) unified HTTP/backend
+lifetime and continuous test execution (implemented), (b) controlled external
+HTTP service and sensor, (c) minimal real host API/stream, (d) one environment
+object and frontend reaction. Stop at each requested review boundary so the user
+can inspect, run, and commit the changes. Do not commit without explicit permission.
 
 Milestones 1–4 form the first deliverable. The brain route initially explains
 missing telemetry rather than fabricating activity. Backend API, test service,

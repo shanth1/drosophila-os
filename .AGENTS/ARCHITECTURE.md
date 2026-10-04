@@ -1,8 +1,9 @@
 # ARCHITECTURE: Core Concept, Engine & Build
 
 Status: mixed current implementation and roadmap. The current runtime is a
-console SNN prototype with an embedded fixed sensor in the default two-neuron
-demo and an embedded random sensor in optional brain mode, not a monitoring or
+SNN prototype with always-on HTTP/UI, an embedded fixed sensor in the default
+continuous two-neuron test runtime, and an embedded random sensor in optional
+brain mode, not a monitoring or
 chaos-engineering service. Effectors and the fully embedded biological distribution below
 are roadmap goals; see README.md for runnable commands and the code map.
 
@@ -16,14 +17,14 @@ Instead, the architecture relies on **Emergence**:
 *   **Effectors (Outputs)** do not query states. They sleep until a "Motor Spike" awakens them.
 
 ## 2. Biological Connectome (Male CNS Pipeline)
-Brain mode uses an imported biological graph; the default demo constructs two neurons in memory. The downloader targets **`male-cns:v1.0` (FlyEM / Janelia)**; graph counts depend on the exported CSV and do not imply biological completeness or fidelity.
+Brain mode uses an imported biological graph; the default test runtime constructs two neurons in memory. The downloader targets **`male-cns:v1.0` (FlyEM / Janelia)**; graph counts depend on the exported CSV and do not imply biological completeness or fidelity.
 *   **Pipeline:** `download_brain.py` retrieves data from NeuPrint into CSV separately. `cmd/malecns-importer/main.go` is an offline CSV-to-binary CLI; it does not query the NeuPrint API.
 *   **Translation:** It translates the massive biological graph into flattened, CPU-cache-optimized binary arrays (`.bin`), adhering to Data-Oriented Design constraints.
 *   **Loading:** The Go engine loads these flat `.bin` files directly into memory at startup.
 
 ## 3. Build Constraints (Zero Dependency Monolith)
 The main OS must compile into a **single, portable binary** with zero external dependencies.
-The default demo is self-contained: both WASM sensors are embedded and its graph
+The default test runtime is self-contained: both WASM sensors are embedded and its graph
 is constructed in memory. Brain mode still uses an external graph and the UI
 has an embedded procedural fly preview and cross-tab laboratory, but no host
 telemetry integration yet (see `FRONTEND.md`). The host
@@ -35,7 +36,7 @@ uses Go modules, including `wazero`; zero dependencies does not mean no Go libra
 The engine abandons OOP (no Interface graphs) in favor of Data-Oriented Design (DoD). Memory consists of flat `Voltages`, `Thresholds`, and `Weights` arrays to maximize CPU L1/L2 cache hits during the high-frequency matrix multiplications.
 
 ### 4.1. Temporal Decoupling (The Two Clocks)
-These independent clocks apply to brain mode. The default demo uses one 250ms
-sequential loop: two sensor samples followed by a propagation-only tick.
+These independent clocks apply to brain mode. The default test runtime uses one
+250ms sequential loop: sample the sensor, tick the engine, observe its output.
 1.  **Biological Clock (Engine Tick):** Runs continuously at high frequency (~10ms). Computes math, applies leak (decay), and propagates spikes.
 2.  **Polling Clock (Sensor Interval):** The random WASM sensor polls every 50ms and writes to an atomic latest-value mailbox per neuron, not a ring buffer or event queue. Writes before a flush overwrite each other; the Biological Clock consumes and clears each value on the next tick.
