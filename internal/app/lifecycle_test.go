@@ -21,7 +21,7 @@ func TestApplicationLifecycle(t *testing.T) {
 				t.Fatal(err)
 			}
 			address := listener.Addr().String()
-			cfg := Config{Mode: mode, BrainPath: writeTestBrain(t, 101)}
+			cfg := Config{Mode: mode, BrainPath: writeTestBrain(t, 101), TestListenAddress: "127.0.0.1:0"}
 			ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 			defer cancel()
 			result := make(chan error, 1)
@@ -85,7 +85,7 @@ func TestHTTPFailureStopsBackend(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	err = runWithListener(ctx, Config{Mode: "test"}, logger, listener)
+	err = runWithListener(ctx, Config{Mode: "test", TestListenAddress: "127.0.0.1:0"}, logger, listener)
 	if !errors.Is(err, net.ErrClosed) {
 		t.Fatalf("expected listener failure, got %v", err)
 	}
@@ -111,4 +111,79 @@ func assertAddressReleased(t *testing.T, address string) {
 		t.Fatalf("HTTP address was not released: %v", err)
 	}
 	listener.Close()
+}
+
+func TestEnvironmentSharesApplicationLifetime(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	records := make(chan slog.Record, 128)
+	result := make(chan error, 1)
+	cfg := Config{Mode: "test", BrainPath: "unused.bin", ListenAddress: "127.0.0.1:0", TestListenAddress: "127.0.0.1:0"}
+	go func() { result <- Run(ctx, cfg, slog.New(recordHandler{records})) }()
+	var addresses []string
+	defer func() {
+		cancel()
+		select {
+		case err := <-result:
+			if err != nil {
+				t.Errorf("shutdown: %v", err)
+			}
+		case <-time.After(5 * time.Second):
+			t.Error("application did not stop")
+		}
+		for _, address := range addresses {
+			assertAddressReleased(t, address)
+		}
+	}()
+	// Both records may arrive in either order; capture them without discarding the other.
+	started := false
+	for len(addresses) < 2 || !started {
+		record := waitRecord(t, records, func(record slog.Record) bool {
+			return record.Message == "frontend listening" || record.Message == "test environment listening" || record.Message == "test runtime started"
+		})
+		if record.Message == "test runtime started" {
+			started = true
+			continue
+		}
+		var address string
+		record.Attrs(func(attr slog.Attr) bool {
+			if attr.Key == "address" {
+				address = attr.Value.String()
+			}
+			return true
+		})
+		addresses = append(addresses, address)
+		path := "/"
+		if record.Message == "test environment listening" {
+			path = "/control"
+		}
+		client := &http.Client{Timeout: 2 * time.Second}
+		response, err := client.Get("http://" + address + path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		response.Body.Close()
+		client.CloseIdleConnections()
+		if response.StatusCode != http.StatusOK {
+			t.Fatalf("%s: %d", path, response.StatusCode)
+		}
+	}
+}
+
+func TestOccupiedEnvironmentAddressReleasesUI(t *testing.T) {
+	occupied, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer occupied.Close()
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	address := listener.Addr().String()
+	cfg := Config{Mode: "test", TestListenAddress: occupied.Addr().String()}
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	if err := runWithListener(context.Background(), cfg, logger, listener); err == nil || !strings.Contains(err.Error(), "test environment listen:") {
+		t.Fatalf("expected environment startup failure, got %v", err)
+	}
+	assertAddressReleased(t, address)
 }

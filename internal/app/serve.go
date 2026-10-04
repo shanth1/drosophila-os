@@ -12,10 +12,17 @@ import (
 )
 
 func serveUI(ctx context.Context, listener net.Listener, logger *slog.Logger) error {
-	server := &http.Server{Handler: ui.Handler(), ReadHeaderTimeout: 5 * time.Second}
+	return serveHTTP(ctx, listener, ui.Handler(), logger, "frontend listening")
+}
+
+func serveHTTP(ctx context.Context, listener net.Listener, handler http.Handler, logger *slog.Logger, message string) error {
+	server := &http.Server{
+		Handler: handler, ReadHeaderTimeout: 5 * time.Second,
+		BaseContext: func(net.Listener) context.Context { return ctx },
+	}
 	result := make(chan error, 1)
 	go func() { result <- server.Serve(listener) }()
-	logger.Info("frontend listening", "address", listener.Addr().String())
+	logger.Info(message, "address", listener.Addr().String())
 	select {
 	case err := <-result:
 		return err

@@ -5,7 +5,7 @@ WebAssembly sensor. This is not yet a monitoring service or a chaos-engineering
 tool. The default application demonstrates:
 
 ```text
-fixed WASM signal -> host ABI -> two-neuron SNN -> output event
+controlled HTTP service -> host probe ABI -> WASM sensor -> three-neuron SNN -> output event
 ```
 
 ## Frontend Preview
@@ -52,21 +52,51 @@ are needed for the default test runtime. Run commands from the repository root:
 make run
 ```
 
-The application uses a fixed sensor sending `0.5` to neuron A, connected to
-output neuron B with weight `1`. Both thresholds are `1`; leak is disabled.
-The sensor is sampled on every tick, 250 ms apart. Initial steps are:
+Test mode starts two HTTP listeners: UI at `127.0.0.1:8080` and a controlled
+external system at `127.0.0.1:8081`. The latter simulates the observed service,
+not the Drosophila frontend API. It starts with an immediate `200` response.
 
-| Tick | Sensor polled? | Voltage [A, B] | Pending [A, B] | Fired [A, B] |
-| --- | --- | --- | --- | --- |
-| 1 | Yes | `[0.5, 0]` | `[0, 0]` | `[false, false]` |
-| 2 | Yes | `[0, 0]` | `[0, 1]` | `[true, false]` |
-| 3 | Yes | `[0.5, 0]` | `[0, 0]` | `[false, true]` |
-| 4 | Yes | `[0, 0]` | `[0, 1]` | `[true, false]` |
-| 5 | Yes | `[0.5, 0]` | `[0, 0]` | `[false, true]` |
+The Go host measures response-header latency with a two-second timeout and no
+redirect following. A fixed-target ABI passes status and elapsed milliseconds
+to the WASM sensor; the guest cannot choose arbitrary URLs. The sensor emits
+two separate normalized channels:
 
-On tick 3 the host logs `msg="output event" tick=3 neuron=1`. This is a test
-event, not an incident detector or WASM effector. By default the backend and UI
-continue until Ctrl+C. An explicit tick limit stops the whole application:
+- Neuron `0`: latency / 1000 ms, clamped to `[0, 1]`, for successful 2xx responses.
+- Neuron `1`: `1` for non-2xx responses or transport failure, otherwise `0`.
+
+On failure, the guest clears stale latency input rather than treating it as a
+successful zero-latency measurement. The observed HTTP status remains distinct.
+Both input neurons feed output neuron `2` with weight `1`. All thresholds are
+`1` and leak is `0.2` per tick. This small network demonstrates a signal path;
+an output spike is not an established anomaly detector or WASM effector.
+
+In another terminal, change the external system:
+
+```sh
+# Inspect the test environment
+curl http://127.0.0.1:8081/control
+
+# Simulate failed responses; watch HTTP observations and output events in host logs
+curl -X PUT http://127.0.0.1:8081/control -H 'Content-Type: application/json' \
+  -d '{"statusCode":503,"delayMs":0}'
+
+# Restore normal operation
+curl -X PUT http://127.0.0.1:8081/control -H 'Content-Type: application/json' \
+  -d '{"statusCode":200,"delayMs":0}'
+
+# Simulate latency, or exceed the two-second timeout with delayMs: 3000
+curl -X PUT http://127.0.0.1:8081/control -H 'Content-Type: application/json' \
+  -d '{"statusCode":200,"delayMs":800}'
+```
+
+`PUT /control` replaces the configuration. Valid status codes are 200..599 and
+delays are 0..5000 ms. In-flight requests keep their initial configuration.
+`GET /health` responds according to it. Controls are separate from `/lab`, which
+still affects graphics only. The fly is not connected to host telemetry yet.
+
+Sensor polling and engine ticks run independently at nominal 250 ms intervals;
+slow HTTP requests do not block the engine. Their phase is not deterministic.
+By default all components run until Ctrl+C. An explicit tick limit stops them:
 
 ```sh
 make run ARGS="-ticks 6"
@@ -74,16 +104,10 @@ make run ARGS="-ticks 0"
 make check
 ```
 
-Output events occur on ticks 3, 5, 7, and so on.
-Sensor calls, engine ticks, and output observation share one sequential loop;
-the test runtime does not use the asynchronous sensor Manager. Read
-`internal/app/test_runtime.go` and `plugins/src/sensor_fixed/main.go` to follow it.
-`examples/pipeline` remains an independent deterministic test of the same
-signal path, without the application's timer or embedded sensor. The old
-three-step demo is no longer an application mode. The current test runtime still
-uses a fixed input; a controllable external HTTP service and real HTTP sensor
-are the next integration step. Browser presentation is not connected to the
-running engine yet.
+Read `internal/app/test_runtime.go`, `internal/httpmonitor/probe.go`, and
+`plugins/src/sensor_http/main.go` to follow the signal. The old three-step demo is
+no longer an application mode. `examples/pipeline` remains an independent
+deterministic fixed-signal experiment.
 
 ## Biological Graph Mode
 
@@ -152,15 +176,15 @@ make build
 make clean
 ```
 
-`make` defaults to `build`. `make build` first compiles the fixed and random
+`make` defaults to `build`. `make build` first compiles the fixed, random, and HTTP
 sensors into `plugins/compiled/`, then embeds their bytes in the host binary
 at `bin/drosophila`. Generated paths are ignored by Git. `make run` builds
 and executes this binary, forwarding `ARGS` as command-line arguments.
-`make clean` removes only the host binary and two sensor files, not source, frontend assets, data,
+`make clean` removes only the host binary and three sensor files, not source, frontend assets, data,
 or Go's build cache. WASM stays under `plugins/` because `go:embed` paths cannot
 use `../`.
 
-Both WASM sensors are embedded. The default test runtime is self-contained and can run
+All three WASM sensors are embedded. The default test runtime is self-contained and can run
 from any working directory; its graph is constructed in memory. Brain mode
 still needs an external graph, whose default path is relative to the working
 directory, not the executable.
@@ -177,7 +201,9 @@ On a fresh checkout, run `make plugins ui-build` before building the host or run
 Only CLI flags configure the host: `-mode` defaults to `test` (or select `brain`),
 `-brain` defaults to `data/male_cns.bin` and is used only in brain mode,
 and `-ticks` defaults to `0` (runs until interrupted). HTTP/UI always uses `-listen`
-(default `127.0.0.1:8080`). A positive tick limit stops both HTTP and the backend. For the previous
+(default `127.0.0.1:8080`). Test mode also uses `-test-listen` (default
+`127.0.0.1:8081`); brain mode does not start this service. A positive tick limit
+stops all components. For the previous
 300-tick large-graph run, specify `-mode brain -ticks 300`. No YAML file or
 environment overrides are used. `cmd/drosophila/config.go` parses
 flags using a local `FlagSet` and calls `app.Config.Validate`;
@@ -225,7 +251,8 @@ these files rather than starting with the architecture roadmap:
    by `0.05`; `internal/malecns/binary.go` atomically writes the graph.
 
 In brain mode, two clocks are independent: sensor sampling is every 50 ms;
-biological ticks are every 10 ms. The test runtime uses one 250 ms clock. These are
+biological ticks are every 10 ms. Test mode uses separate sensor/engine clocks,
+both nominally 250 ms. These are
 scheduling targets, not hard real-time guarantees.
 
 ### Engine Data Model
@@ -252,14 +279,16 @@ edge count, `uint32` offsets (neurons + 1), `uint32` targets (edges), and
 ## Scope And Tests
 
 Implemented: graph import/loading, simplified LIF engine, atomic input buffer,
-embedded fixed/random sensors, WASM input ABI, console activity, and graceful
-shutdown. The default test runtime produces deterministic output events from a small
-network; the biological graph remains an experimental mode.
+embedded fixed/random/HTTP sensors, WASM input and fixed-target HTTP probe ABIs,
+controlled external HTTP service, console activity, and graceful shutdown.
+The default test runtime drives a small network from real HTTP observations;
+exact event ticks depend on independent clocks. The biological graph remains
+an experimental mode. The fixed sensor remains an ABI regression fixture.
 
 Implemented frontend preview: embedded HTTP static serving, procedural fly,
 dashboard, and cross-tab visual laboratory. This is not a host telemetry API.
 
-Roadmap only: HTTP host API, WebSocket, test external server, effectors,
+Roadmap only: HTTP host telemetry API, WebSocket, effectors,
 proprietary plugin loading from disk, learning, database, and snapshots.
 Empty/package-only placeholders for these features and the empty YAML file
 have been removed; no implementation was removed. Documents under `.AGENTS/`
@@ -272,7 +301,9 @@ is a draft, with context length and memory ownership still unresolved.
 `internal/app/` composes the host runtime; `internal/malecns/` owns CSV import and
 binary output. `internal/engine/`
 contains graph loading and SNN math; `internal/wasm/` contains the input ABI and
-sensor lifecycle; `plugins/` contains the embedded sensors and their sources.
+sensor lifecycle; `internal/httpmonitor/` owns HTTP measurement and
+`internal/testenv/` owns the controlled external service. `plugins/` contains the
+embedded sensors and their sources.
 `download_brain.py` obtains the CSV separately; the Go importer does not call
 NeuPrint. Use explicit `-csv` and `-out` paths as shown above.
 The defaults are `data/manc_synapses.csv` and `data/male_cns.bin`. Malformed
@@ -293,11 +324,13 @@ make pipeline-lab  # Deterministic WASM input -> SNN -> test-side output observa
 The pipeline lab observes output in the test; it does not implement an effector
 ABI or the HTTP host API.
 
-`make check` rebuilds the sensor, runs tests, and runs `go vet`. Tests cover
+`make check` rebuilds the sensors, runs tests, and runs `go vet`. Tests cover
 graph validation, CSV import and binary roundtrips, leak/threshold/reset behavior,
 next-tick propagation, buffer overwrite/reset, embedded WASM lifecycle, and
-six steps of the default fixed-sensor pipeline, always-on HTTP in both backend
-modes, shared shutdown, component failures, and occupied listen addresses.
+HTTP sensor normalization/capability enforcement, failure/recovery through the
+real HTTP/WASM/SNN path, independent engine ticks during blocked probes,
+test-environment validation, always-on HTTP, shared shutdown, component failures,
+and occupied listen addresses.
 They do not establish biological validity, incident-detection quality, or
 production performance of the large graph.
 

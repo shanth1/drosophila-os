@@ -6,10 +6,12 @@ The initial shell, procedural fly, orbit controls, three routes, basic cross-tab
 behavior previews, and embedded UI server are implemented. Run `make ui-dev` for
 Vite or `make run` for the binary (`make ui-run` is an alias). HTTP/UI now starts
 alongside the backend in every mode. The default `test` backend continuously
-samples the embedded fixed sensor into a two-neuron SNN; `brain` retains the
+samples a controlled external HTTP service through an embedded WASM sensor into
+a three-neuron SNN (latency input, failure input, output); `brain` retains the
 experimental graph/random sensor. There is no `demo` or standalone `ui` mode.
-`-ticks` defaults to zero (unlimited); explicit finite runs stop both components.
-Failure of either component cancels and joins the other. The `/brain` page is an
+`-ticks` defaults to zero (unlimited); explicit finite runs stop all components.
+Test mode serves `/health` and `/control` on `-test-listen` (127.0.0.1:8081).
+Failure of any component cancels and joins the others. The `/brain` page is an
 explicit placeholder, and frontend telemetry is not connected yet.
 
 Go runtime composition lives in `internal/app`, not `cmd/drosophila`. CLI parsing
@@ -140,9 +142,10 @@ Node process or CDN. Build frontend assets before compiling the embedding packag
 Go serves the SPA routes and embedded resources through `net/http`.
 
 HTTP/UI is an always-on part of application lifetime, not a backend mode.
-The three-tick demo has been replaced by continuous fixed-sensor test execution.
-The next stage replaces this fixed input with a controllable external HTTP system
-and real sensor; `brain` is still experimental, not a production environment mode.
+The three-tick demo has been replaced by continuous HTTP-sensor test execution.
+The host performs fixed-target requests; WASM normalizes distinct latency and
+failure receptors through an explicit probe ABI. Sensor and engine clocks are
+independent. `brain` is still experimental, not a production environment mode.
 
 ## Implementation milestones
 
@@ -157,7 +160,7 @@ and real sensor; `brain` is still experimental, not a production environment mod
 
 Milestone 5 is being delivered in reviewable stages: (a) unified HTTP/backend
 lifetime and continuous test execution (implemented), (b) controlled external
-HTTP service and sensor, (c) minimal real host API/stream, (d) one environment
+HTTP service and sensor (implemented), (c) minimal real host API/stream, (d) one environment
 object and frontend reaction. Stop at each requested review boundary so the user
 can inspect, run, and commit the changes. Do not commit without explicit permission.
 

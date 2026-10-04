@@ -1,16 +1,17 @@
 # MODULES: WASM Contracts & Multi-channeling
 
-Status: the embedded fixed and random sensors, WASI reactor lifecycle, and input ABI are
-implemented. Multi-channel application mappings, proprietary dynamic loading,
+Status: the embedded fixed, random, and HTTP sensors, WASI reactor lifecycle,
+input ABI, and fixed-target HTTP probe capability are implemented. General
+multi-channel application mappings, proprietary dynamic loading,
 and effectors are roadmap items. The HTTP host API is not implemented.
 
 ## 1. Plugin Isolation and Granularity (The UNIX Way)
-Drosophila.OS uses WebAssembly (WASM) for the fixed test sensor and the random brain-mode sensor. The host application (Go) runs them via the `wazero` engine; WASM effectors are planned.
+Drosophila.OS uses WebAssembly (WASM) for the HTTP test sensor, the random brain-mode sensor, and a retained fixed-signal regression fixture. The host application (Go) runs them via the `wazero` engine; WASM effectors are planned.
 
 **Rule of Granularity:** One module does exactly one job.
 Do not create monolithic "ServerAnalyzer" plugins. Create `sensor_cpu.wasm`, `sensor_ram.wasm`, and `action_slack.wasm`. They must not know about each other.
 
-**Loading Strategy:** Both sensors are embedded directly into the binary (`//go:embed`). The continuous test runtime calls its fixed sensor synchronously every tick; brain mode polls its random sensor through Manager. Both run alongside HTTP/UI. A unified module pool and proprietary plugins loaded dynamically from disk are roadmap goals, not implemented behavior. Their privilege model remains to be designed.
+**Loading Strategy:** All sensors are embedded directly into the binary (`//go:embed`). Test mode polls its HTTP sensor through Manager with an explicitly granted probe capability; brain mode polls its random sensor without that capability. Both run alongside HTTP/UI. A unified module pool and proprietary plugins loaded dynamically from disk are roadmap goals, not implemented behavior. Their privilege model remains to be designed.
 
 ## 2. Multi-channeling (Critical Concept for Sensors)
 A sensor module must never mix different contexts into a single metric.
@@ -33,7 +34,24 @@ Sensors fetch data, normalize it to a strictly enforced `float32` range of `[0.0
 *   **Imported from Host (Go):** `env.host_emit_signal(receptor_id i32, intensity_bits i32)` -> The second argument contains the IEEE 754 bits of a normalized `float32`, not a numeric integer conversion.
 *   **Initialization:** Sensors export `_initialize()` and are built as WASI reactors. For standard Go use `GOOS=wasip1 GOARCH=wasm go build -buildmode=c-shared`. The host calls `_initialize` once before polling `tick`.
 
-### 3.2. Output ABI (Effectors/Actions)
+### 3.2. Fixed-target HTTP probe capability (implemented)
+
+`env.host_probe_http() -> i64` returns an unsigned packed observation: status in
+the high 32 bits, elapsed response-header milliseconds in the low 32 bits. Status
+zero means transport failure. The host owns the target URL, connection pool,
+timeout (two seconds in test mode), and redirect policy (do not follow). The
+guest supplies no URL and has no general network access. `NewManager` does not
+grant this export; `NewManagerWithHTTPProbe` explicitly does. Cancellation reaches
+the HTTP request through the guest call context.
+
+The HTTP guest emits latency on receptor 0 and failure on receptor 1. Successful
+2xx responses produce latency `min(elapsedMs / 1000, 1)` and failure zero. Other
+statuses/transport failures produce failure one and clear stale latency input.
+This clearing is not a successful measurement of zero latency. A three-neuron
+test graph routes both inputs to output 2, with leak 0.2 and threshold 1.
+The fixed graph and normalization are illustrative, not calibrated anomaly logic.
+
+### 3.3. Output ABI (Effectors/Actions)
 Draft only; not implemented. The empty output ABI placeholder has been removed.
 Actions remain completely dormant. They do not poll. They are executed by the Go host only when a specific brain region's electrical potential crosses a configured `threshold`.
 

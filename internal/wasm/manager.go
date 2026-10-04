@@ -23,6 +23,18 @@ type Manager struct {
 
 // NewManager creates a new Wazero-backed WASM plugin manager.
 func NewManager(ctx context.Context, receiver SignalReceiver) (*Manager, error) {
+	return newManager(ctx, receiver, nil)
+}
+
+// NewManagerWithHTTPProbe explicitly grants the fixed-target HTTP probe capability.
+func NewManagerWithHTTPProbe(ctx context.Context, receiver SignalReceiver, probe HTTPProbe) (*Manager, error) {
+	if probe == nil {
+		return nil, fmt.Errorf("HTTP probe must not be nil")
+	}
+	return newManager(ctx, receiver, probe)
+}
+
+func newManager(ctx context.Context, receiver SignalReceiver, probe HTTPProbe) (*Manager, error) {
 	ctx, cancel := context.WithCancel(ctx)
 	runtime := wazero.NewRuntimeWithConfig(ctx, wazero.NewRuntimeConfig().WithCloseOnContextDone(true))
 
@@ -33,7 +45,7 @@ func NewManager(ctx context.Context, receiver SignalReceiver) (*Manager, error) 
 		return nil, fmt.Errorf("instantiate WASI: %w", err)
 	}
 
-	if err := RegisterInputABI(ctx, runtime, receiver); err != nil {
+	if err := RegisterSensorABI(ctx, runtime, receiver, probe); err != nil {
 		cancel()
 		_ = runtime.Close(context.Background())
 		return nil, fmt.Errorf("register input abi: %w", err)

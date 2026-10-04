@@ -17,10 +17,10 @@ func TestParseConfig(t *testing.T) {
 		args []string
 		want app.Config
 	}{
-		{"defaults", nil, app.Config{Mode: "test", BrainPath: "data/male_cns.bin", TickLimit: 0, ListenAddress: "127.0.0.1:8080"}},
-		{"overrides", []string{"-mode", "brain", "-brain", "custom.bin", "-ticks", "10"}, app.Config{Mode: "brain", BrainPath: "custom.bin", TickLimit: 10, ListenAddress: "127.0.0.1:8080"}},
-		{"unlimited", []string{"-ticks", "0"}, app.Config{Mode: "test", BrainPath: "data/male_cns.bin", TickLimit: 0, ListenAddress: "127.0.0.1:8080"}},
-		{"test address", []string{"-mode", "test", "-listen", "127.0.0.1:8090"}, app.Config{Mode: "test", BrainPath: "data/male_cns.bin", TickLimit: 0, ListenAddress: "127.0.0.1:8090"}},
+		{"defaults", nil, app.Config{Mode: "test", BrainPath: "data/male_cns.bin", TickLimit: 0, ListenAddress: "127.0.0.1:8080", TestListenAddress: "127.0.0.1:8081"}},
+		{"overrides", []string{"-mode", "brain", "-brain", "custom.bin", "-ticks", "10"}, app.Config{Mode: "brain", BrainPath: "custom.bin", TickLimit: 10, ListenAddress: "127.0.0.1:8080", TestListenAddress: "127.0.0.1:8081"}},
+		{"unlimited", []string{"-ticks", "0"}, app.Config{Mode: "test", BrainPath: "data/male_cns.bin", TickLimit: 0, ListenAddress: "127.0.0.1:8080", TestListenAddress: "127.0.0.1:8081"}},
+		{"test addresses", []string{"-mode", "test", "-listen", "127.0.0.1:8090", "-test-listen", "127.0.0.1:8091"}, app.Config{Mode: "test", BrainPath: "data/male_cns.bin", TickLimit: 0, ListenAddress: "127.0.0.1:8090", TestListenAddress: "127.0.0.1:8091"}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			got, err := parseConfig(tc.args, io.Discard)
@@ -36,6 +36,7 @@ func TestParseConfigRejectsInvalidArguments(t *testing.T) {
 		{"-ticks", "-1"}, {"-ticks", "invalid"}, {"-brain", ""},
 		{"-unknown"}, {"-brain"}, {"unexpected"}, {"-mode", "unknown"},
 		{"-mode", "demo"}, {"-mode", "ui"}, {"-listen", ""},
+		{"-test-listen", ""},
 	} {
 		var output bytes.Buffer
 		if _, err := parseConfig(args, &output); err == nil {
