@@ -1,5 +1,6 @@
 import { behaviors, initialFlyState } from '../../entities/fly/state';
 import type { FlyState } from '../../entities/fly/state';
+import { AlarmSound } from '../../features/alarm-sound/AlarmSound';
 
 export function Lab({ state, send, supported }: { state: FlyState; send: (state: FlyState) => void; supported: boolean }) {
   return <main className="page"><span className="eyebrow">PRESENTATION LABORATORY</span><h1>Give the fly a direction.</h1>
@@ -10,7 +11,12 @@ export function Lab({ state, send, supported }: { state: FlyState; send: (state:
     )}</div><label className="slider">Activity <strong>{Math.round(state.activity * 100)}%</strong>
       <input type="range" min="0" max="1" step="0.01" value={state.activity} onChange={event => send({ ...state, mode: 'manual', activity: Number(event.target.value) })} />
     </label><button onClick={() => send({ ...initialFlyState })}>Return to live telemetry</button>
+    <p className="muted">Alarmed stays restless even at zero activity. Higher activity intensifies panic and shifts lighting from yellow to red; at 60%, the rotating beacon and enabled siren join in.</p>
     <p className="muted">Current mode: {state.mode}. Manual mode overrides host-driven animation; telemetry continues updating. Coffee shows a cup; break turns the fly away. Full action sequences and event injection are later milestones.</p></section>
+    <section className="panel"><h2>Alarm sound</h2>
+      <AlarmSound alarmed={state.behavior === 'alarmed'} activity={state.activity} />
+      <p className="muted">Sound plays from this laboratory tab during high-activity alarms. Enable it here and keep this tab open while watching the dashboard.</p>
+    </section>
     <a href="/" target="_blank" rel="noreferrer">Open dashboard ↗</a>
   </main>;
 }

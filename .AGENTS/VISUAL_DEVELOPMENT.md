@@ -109,11 +109,19 @@ The floor lies in XZ, Y is up, and the fly faces roughly negative Z.
 The fly is procedural and unrigged. Head/legs/wings are local references; no named
 public rig, GLB asset, transition controller, action timeline, or priority scheduler
 exists yet. Coffee currently shows/moves a cup; break turns the body; these are
-previews, not complete drinking/walking sequences. `working` and `alarmed` share
-basic busy motion; alarm also changes the scene accent light to red.
+previews, not complete drinking/walking sequences. `alarmed` raises the front legs,
+scans with the head, agitates the wings, and adds a rotating red spotlight pair,
+a pulsing floor ring, and a warm background. Activity scales alarm movement with
+a restless baseline at zero and stronger panic at midrange. Lighting progresses
+from yellow to red; the rotating beacon and sound engage at 60% activity, using
+the shared threshold in `features/presentation-rules/alarm.ts`. The laboratory
+provides opt-in filtered two-tone Web Audio siren playback and a volume slider.
+Sound plays from the laboratory tab only
+after the user enables it and fades out when the alarm ends. Keep that tab open
+when previewing the dashboard.
 
 The scene currently contains the fly, a floor, and a grid. No server, plant,
-room, smoke/fire particles, cigarette, speech system, or audio is implemented.
+room, smoke/fire particles, cigarette, or speech system is implemented.
 Routing uses pathname checks and ordinary links, not React Router. Adding a new
 page requires updating both frontend routing and `ui/embed.go`/route checks.
 

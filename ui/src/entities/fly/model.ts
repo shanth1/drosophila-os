@@ -108,13 +108,21 @@ export function createFly() {
     root,
     update(time: number, state: FlyState) {
       const busy = state.behavior === 'working' || state.behavior === 'alarmed';
-      body.position.y = Math.sin(time * 2) * 0.025;
-      head.rotation.y = Math.sin(time * (busy ? 4 : 0.7)) * (busy ? 0.2 : 0.08);
-      head.rotation.x = state.behavior === 'coffee' ? 0.18 : 0;
+      const alarmed = state.behavior === 'alarmed';
+      const alarmActivity = alarmed ? 0.3 + 1.2 * Math.sqrt(state.activity) : 0;
+      body.position.y = alarmed ? 0.08 + Math.sin(time * 18) * 0.025 * alarmActivity : Math.sin(time * 2) * 0.025;
+      body.rotation.z = Math.sin(time * 11) * 0.045 * alarmActivity;
+      body.rotation.x = alarmed ? -0.08 : 0;
+      head.rotation.y = Math.sin(time * (alarmed ? 9 : busy ? 4 : 0.7)) * (alarmed ? 0.35 * alarmActivity : busy ? 0.2 : 0.08);
+      head.rotation.x = alarmed ? -0.16 : state.behavior === 'coffee' ? 0.18 : 0;
       wings.forEach((wing, index) => {
-        wing.rotation.z = (index === 0 ? -1 : 1) * (0.08 + Math.sin(time * (busy ? 35 : 4)) * state.activity * 0.3);
+        wing.rotation.z = (index === 0 ? -1 : 1) * (alarmed ? 0.35 + Math.sin(time * 48) * 0.24 * alarmActivity : 0.08 + Math.sin(time * (busy ? 35 : 4)) * state.activity * 0.3);
       });
-      legs.forEach((leg, index) => { leg.rotation.x = busy ? Math.sin(time * 8 + index) * 0.08 : 0; });
+      legs.forEach((leg, index) => {
+        const front = index % 3 === 0;
+        leg.rotation.x = alarmed ? (front ? -0.45 : 0) + Math.sin(time * 16 + index) * 0.12 * alarmActivity : busy ? Math.sin(time * 8 + index) * 0.08 : 0;
+        leg.rotation.z = alarmed && front ? (index < 3 ? -1 : 1) * 0.18 : 0;
+      });
       cup.visible = state.behavior === 'coffee';
       cup.position.y = 0.75 + Math.sin(time * 2) * 0.08;
       root.rotation.y = state.behavior === 'break' ? -0.45 : 0;

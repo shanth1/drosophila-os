@@ -3,6 +3,7 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { createFly } from '../../entities/fly/model';
 import type { FlyState } from '../../entities/fly/state';
+import { alarmSirenStrength } from '../../features/presentation-rules/alarm';
 
 export function WorldScene({ state }: { state: FlyState }) {
   const container = useRef<HTMLDivElement>(null);
@@ -35,6 +36,26 @@ export function WorldScene({ state }: { state: FlyState }) {
     const accent = new THREE.PointLight('#6cd9b7', 16, 12);
     accent.position.set(-3, 3, 2);
     scene.add(accent);
+    const siren = new THREE.Group();
+    scene.add(siren);
+    for (const side of [-1, 1]) {
+      const beam = new THREE.SpotLight('#ff3026', 0, 14, Math.PI / 5, 0.65, 1.5);
+      beam.position.set(0, 4, 0);
+      beam.target.position.set(side * 5, 0, 0);
+      siren.add(beam, beam.target);
+    }
+    const alarmMaterial = new THREE.MeshBasicMaterial({ color: '#ff382b', transparent: true, opacity: 0, depthWrite: false, side: THREE.DoubleSide });
+    const alarmRing = new THREE.Mesh(new THREE.RingGeometry(2.1, 2.25, 80), alarmMaterial);
+    alarmRing.rotation.x = -Math.PI / 2;
+    alarmRing.position.y = 0.005;
+    scene.add(alarmRing);
+    const normalBackground = new THREE.Color('#10171c');
+    const warningColor = new THREE.Color('#ffcd38');
+    const dangerColor = new THREE.Color('#ff3026');
+    const alarmColor = new THREE.Color();
+    const warningBackground = new THREE.Color('#30291a');
+    const dangerBackground = new THREE.Color('#36151d');
+    const alarmBackground = new THREE.Color();
     const floor = new THREE.Mesh(new THREE.CircleGeometry(12, 64), new THREE.MeshStandardMaterial({ color: '#172329', roughness: 0.9 }));
     floor.rotation.x = -Math.PI / 2;
     floor.position.y = -0.02;
@@ -52,7 +73,28 @@ export function WorldScene({ state }: { state: FlyState }) {
     observer.observe(element);
     renderer.setAnimationLoop((milliseconds) => {
       fly.update(milliseconds / 1000, current.current);
-      accent.color.set(current.current.behavior === 'alarmed' ? '#ff4438' : '#6cd9b7');
+      const time = milliseconds / 1000;
+      const alarmed = current.current.behavior === 'alarmed';
+      const activity = current.current.activity;
+      const sirenStrength = alarmed ? alarmSirenStrength(activity) : 0;
+      const pulse = 0.5 + 0.5 * Math.sin(time * Math.PI * 3);
+      alarmColor.copy(warningColor).lerp(dangerColor, Math.min(1, activity / 0.8));
+      alarmBackground.copy(warningBackground).lerp(dangerBackground, Math.min(1, activity / 0.8));
+      if (alarmed) accent.color.copy(alarmColor);
+      else accent.color.set('#6cd9b7');
+      accent.intensity = alarmed ? 20 + activity * 12 + pulse * (6 + activity * 16) : 16;
+      siren.rotation.y = time * 4;
+      siren.children.forEach(object => {
+        if (object instanceof THREE.SpotLight) {
+          object.intensity = sirenStrength * 80;
+          object.color.copy(alarmColor);
+        }
+      });
+      alarmMaterial.color.copy(alarmColor);
+      alarmMaterial.opacity = alarmed ? 0.2 + pulse * (0.15 + activity * 0.2) : 0;
+      alarmRing.scale.setScalar(1 + (alarmed ? pulse * 0.06 : 0));
+      (scene.background as THREE.Color).copy(normalBackground).lerp(alarmBackground, alarmed ? 0.45 + pulse * 0.25 : 0);
+      (scene.fog as THREE.Fog).color.copy(scene.background as THREE.Color);
       controls.update();
       renderer.render(scene, camera);
     });
