@@ -41,8 +41,8 @@ button { background: #25332f; color: #e7eee9; border: 1px solid #4a6056; border-
 button:hover, button[aria-pressed=true] { background: #92d8bf; color: #10171c; }
 .slider { display: block; max-width: 500px; margin: 30px 0; }
 .slider strong { float: right; }
-.alarm-sound { margin-top: 16px; }
-.alarm-sound .slider { margin: 12px 0 0; }
+.sound-controls { margin-top: 16px; }
+.sound-controls .slider { margin: 12px 0 0; }
 input[type=range] { display: block; width: 100%; margin-top: 18px; accent-color: #92d8bf; }
 .muted { font-size: 13px; color: #8b9d9e; }
 :focus-visible { outline: 2px solid #92d8bf; outline-offset: 4px; }

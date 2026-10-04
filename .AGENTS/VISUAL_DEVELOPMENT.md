@@ -86,6 +86,8 @@ Its embedded UI is the last build, not live source; rebuild for release checks.
 | --- | --- |
 | `ui/src/entities/fly/state.ts` | Behavior IDs, `FlyState`, cross-tab state validation |
 | `ui/src/entities/fly/model.ts` | Original procedural geometry and basic motion |
+| `ui/src/entities/fly/coffeeCup.ts` | Fly-owned mug prop, visible drink, crema, and animated steam wisps |
+| `ui/src/features/presentation-sound/SoundControls.tsx` | Lab-wide volume/mute, siren synthesis, and sip sound playback |
 | `ui/src/widgets/world-scene/WorldScene.tsx` | Camera, floor/grid, lights, render loop, cleanup |
 | `ui/src/features/presentation-rules/liveFly.ts` | Live/manual resolution and artistic mappings |
 | `ui/src/features/presentation-rules/liveFly.test.ts` | Override, disconnect, gesture expiry checks |
@@ -108,14 +110,25 @@ The floor lies in XZ, Y is up, and the fly faces roughly negative Z.
 
 The fly is procedural and unrigged. Head/legs/wings are local references; no named
 public rig, GLB asset, transition controller, action timeline, or priority scheduler
-exists yet. Coffee currently shows/moves a cup; break turns the body; these are
-previews, not complete drinking/walking sequences. `alarmed` raises the front legs,
+exists yet. Coffee holds an open amber mug with a visible drink and a crema rim,
+animated translucent steam, relaxed wings, and warm scene lighting. The mug rests
+low beside the fly between occasional sips; one front limb holds the handle while
+the other gestures, with fixed shoulder anchors and a small post-sip head nod.
+The coffee limbs use a two-segment joint solve with lengths based on the normal
+front legs, plus matching feet; reaching changes the bend rather than limb length.
+Activity adjusts the speed of an accumulated animation clock without phase jumps.
+Steam uses mesh geometry/materials covered by the
+existing scene cleanup, without textures or particles. Break turns the body; these
+are previews, not complete drinking/walking sequences. `alarmed` raises the front legs,
 scans with the head, agitates the wings, and adds a rotating red spotlight pair,
 a pulsing floor ring, and a warm background. Activity scales alarm movement with
 a restless baseline at zero and stronger panic at midrange. Lighting progresses
 from yellow to red; the rotating beacon and sound engage at 60% activity, using
 the shared threshold in `features/presentation-rules/alarm.ts`. The laboratory
-provides opt-in filtered two-tone Web Audio siren playback and a volume slider.
+provides one opt-in sound switch and master volume for the filtered two-tone siren
+and synthesized coffee sips. The scene emits transient `coffee.sip` signals through
+`drosophila.presentation-sound.v1` when the mug reaches sipping position, rather
+than starting an independent sound timer. The lab skips stale/duplicate signals.
 Sound plays from the laboratory tab only
 after the user enables it and fades out when the alarm ends. Keep that tab open
 when previewing the dashboard.

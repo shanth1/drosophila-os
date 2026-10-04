@@ -1,7 +1,8 @@
 import * as THREE from 'three';
 import type { FlyState } from './state';
+import { createCoffeeCup } from './coffeeCup.ts';
 
-export function createFly() {
+export function createFly(onCoffeeSip?: () => void) {
   const root = new THREE.Group();
   const body = new THREE.Group();
   root.add(body);
@@ -95,36 +96,90 @@ export function createFly() {
     }
     wings.push(pivot);
   }
-  const cup = new THREE.Group();
-  const ceramic = new THREE.MeshStandardMaterial({ color: '#f2e8cf' });
-  cup.add(new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.1, 0.23, 20), ceramic));
-  const handle = new THREE.Mesh(new THREE.TorusGeometry(0.08, 0.025, 8, 16), ceramic);
-  handle.position.x = 0.14;
-  cup.add(handle);
-  cup.position.set(0.45, 0.65, -0.95);
-  body.add(cup);
+  const cup = createCoffeeCup();
+  body.add(cup.root);
+  const coffeeArms = new THREE.Group();
+  body.add(coffeeArms);
+  const segmentGeometry = new THREE.CylinderGeometry(0.032, 0.04, 1, 8);
+  const upperLength = Math.hypot(0.3, 0.12, 0.16) + Math.hypot(0.26, 0.23, 0.14);
+  const lowerLength = Math.hypot(0.17, 0.3, 0.1) + Math.hypot(0.07, 0.29, 0.08);
+  const up = new THREE.Vector3(0, 1, 0);
+  const coffeeLimbs = [-1, 1].map(side => {
+    const upper = new THREE.Mesh(segmentGeometry, dark);
+    const lower = new THREE.Mesh(segmentGeometry, dark);
+    upper.castShadow = lower.castShadow = true;
+    const joint = ellipsoid(coffeeArms, shell, [0, 0, 0], [0.055, 0.055, 0.055]);
+    const hand = ellipsoid(coffeeArms, shell, [0, 0, 0], [0.055, 0.045, 0.06]);
+    coffeeArms.add(upper, lower);
+    const foot = tube(coffeeArms, dark, [[0, 0, 0], [side * 0.06, -0.07, -0.06], [side * 0.14, -0.08, -0.15]], 0.02);
+    return { side, upper, lower, joint, hand, foot, shoulder: new THREE.Vector3(side * 0.3, 1.05, -0.35), elbow: new THREE.Vector3(), grip: new THREE.Vector3(), direction: new THREE.Vector3(), bend: new THREE.Vector3() };
+  });
+  let previousTime: number | null = null;
+  let coffeeTime = 0;
+  let wasSipping = false;
 
   return {
     root,
     update(time: number, state: FlyState) {
       const busy = state.behavior === 'working' || state.behavior === 'alarmed';
       const alarmed = state.behavior === 'alarmed';
+      const drinking = state.behavior === 'coffee';
+      const delta = previousTime === null ? 0 : Math.max(0, Math.min(0.1, time - previousTime));
+      previousTime = time;
+      coffeeTime = drinking ? coffeeTime + delta * (0.8 + state.activity * 0.4) : 0;
+      const coffeePhase = coffeeTime % 9;
+      const sip = drinking && coffeePhase > 5.5 && coffeePhase < 8 ? Math.sin((coffeePhase - 5.5) / 2.5 * Math.PI) ** 2 : 0;
+      const sipping = sip > 0.9;
+      if (sipping && !wasSipping) onCoffeeSip?.();
+      wasSipping = sipping;
+      const nod = drinking && coffeePhase >= 8 ? Math.sin((coffeePhase - 8) * Math.PI * 2) * 0.035 : 0;
       const alarmActivity = alarmed ? 0.3 + 1.2 * Math.sqrt(state.activity) : 0;
       body.position.y = alarmed ? 0.08 + Math.sin(time * 18) * 0.025 * alarmActivity : Math.sin(time * 2) * 0.025;
       body.rotation.z = Math.sin(time * 11) * 0.045 * alarmActivity;
-      body.rotation.x = alarmed ? -0.08 : 0;
-      head.rotation.y = Math.sin(time * (alarmed ? 9 : busy ? 4 : 0.7)) * (alarmed ? 0.35 * alarmActivity : busy ? 0.2 : 0.08);
-      head.rotation.x = alarmed ? -0.16 : state.behavior === 'coffee' ? 0.18 : 0;
+      body.rotation.x = alarmed ? -0.08 : drinking ? 0.025 + sip * 0.025 : 0;
+      head.rotation.y = Math.sin(time * (alarmed ? 9 : busy ? 4 : 0.7)) * (alarmed ? 0.35 * alarmActivity : drinking ? 0.025 : busy ? 0.2 : 0.08);
+      head.rotation.x = alarmed ? -0.16 : drinking ? 0.03 + sip * 0.07 + nod : 0;
+      head.rotation.z = drinking ? Math.sin(time * 0.7) * 0.035 : 0;
       wings.forEach((wing, index) => {
-        wing.rotation.z = (index === 0 ? -1 : 1) * (alarmed ? 0.35 + Math.sin(time * 48) * 0.24 * alarmActivity : 0.08 + Math.sin(time * (busy ? 35 : 4)) * state.activity * 0.3);
+        wing.rotation.z = (index === 0 ? -1 : 1) * (alarmed ? 0.35 + Math.sin(time * 48) * 0.24 * alarmActivity : drinking ? 0.04 + Math.sin(time * 2) * 0.025 : 0.08 + Math.sin(time * (busy ? 35 : 4)) * state.activity * 0.3);
       });
       legs.forEach((leg, index) => {
         const front = index % 3 === 0;
+        leg.visible = !(drinking && front);
         leg.rotation.x = alarmed ? (front ? -0.45 : 0) + Math.sin(time * 16 + index) * 0.12 * alarmActivity : busy ? Math.sin(time * 8 + index) * 0.08 : 0;
         leg.rotation.z = alarmed && front ? (index < 3 ? -1 : 1) * 0.18 : 0;
       });
-      cup.visible = state.behavior === 'coffee';
-      cup.position.y = 0.75 + Math.sin(time * 2) * 0.08;
+      cup.root.visible = drinking;
+      coffeeArms.visible = drinking;
+      if (drinking) {
+        cup.update(time, sip);
+        coffeeLimbs.forEach(limb => {
+          if (limb.side === 1) {
+            limb.grip.set(0.32, 0.02, 0).applyEuler(cup.root.rotation).add(cup.root.position);
+          } else {
+            const gesture = coffeePhase < 4 ? Math.sin(coffeePhase / 4 * Math.PI) ** 2 : 0;
+            limb.grip.set(-0.65, 0.54 + gesture * 0.18, -0.91 - gesture * 0.1);
+          }
+          limb.direction.subVectors(limb.grip, limb.shoulder);
+          const distance = Math.max(0.001, Math.min(upperLength + lowerLength - 0.001, limb.direction.length()));
+          limb.direction.normalize();
+          limb.grip.copy(limb.shoulder).addScaledVector(limb.direction, distance);
+          const along = (upperLength ** 2 - lowerLength ** 2 + distance ** 2) / (2 * distance);
+          const height = Math.sqrt(Math.max(0, upperLength ** 2 - along ** 2));
+          limb.bend.set(limb.side, -0.35, 0.15);
+          limb.bend.addScaledVector(limb.direction, -limb.bend.dot(limb.direction)).normalize();
+          limb.elbow.copy(limb.shoulder).addScaledVector(limb.direction, along).addScaledVector(limb.bend, height);
+          limb.joint.position.copy(limb.elbow);
+          limb.hand.position.copy(limb.grip);
+          limb.foot.position.copy(limb.grip);
+          for (const [segment, start, end] of [[limb.upper, limb.shoulder, limb.elbow], [limb.lower, limb.elbow, limb.grip]] as const) {
+            limb.direction.subVectors(end, start);
+            segment.position.copy(start).add(end).multiplyScalar(0.5);
+            segment.scale.y = limb.direction.length();
+            segment.quaternion.setFromUnitVectors(up, limb.direction.normalize());
+          }
+        });
+      }
       root.rotation.y = state.behavior === 'break' ? -0.45 : 0;
     },
   };

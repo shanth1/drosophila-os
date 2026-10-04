@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite --host 127.0.0.1",
     "build": "tsc --noEmit && vite build",
-    "test": "node --experimental-strip-types --test src/shared/api/*.test.ts src/features/presentation-rules/*.test.ts"
+    "test": "node --experimental-strip-types --test src/shared/api/*.test.ts src/features/presentation-rules/*.test.ts src/entities/fly/*.test.ts"
   },
   "dependencies": {
     "react": "^19.2.0",

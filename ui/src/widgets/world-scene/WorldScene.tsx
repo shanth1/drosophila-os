@@ -50,6 +50,7 @@ export function WorldScene({ state }: { state: FlyState }) {
     alarmRing.position.y = 0.005;
     scene.add(alarmRing);
     const normalBackground = new THREE.Color('#10171c');
+    const coffeeBackground = new THREE.Color('#211c18');
     const warningColor = new THREE.Color('#ffcd38');
     const dangerColor = new THREE.Color('#ff3026');
     const alarmColor = new THREE.Color();
@@ -61,7 +62,8 @@ export function WorldScene({ state }: { state: FlyState }) {
     floor.position.y = -0.02;
     floor.receiveShadow = true;
     scene.add(floor, new THREE.GridHelper(20, 40, '#35524c', '#233831'));
-    const fly = createFly();
+    const soundChannel = typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel('drosophila.presentation-sound.v1') : null;
+    const fly = createFly(() => soundChannel?.postMessage({ type: 'coffee.sip', timestamp: Date.now() }));
     scene.add(fly.root);
     const observer = new ResizeObserver(() => {
       const { width, height } = element.getBoundingClientRect();
@@ -75,14 +77,16 @@ export function WorldScene({ state }: { state: FlyState }) {
       fly.update(milliseconds / 1000, current.current);
       const time = milliseconds / 1000;
       const alarmed = current.current.behavior === 'alarmed';
+      const drinking = current.current.behavior === 'coffee';
       const activity = current.current.activity;
       const sirenStrength = alarmed ? alarmSirenStrength(activity) : 0;
       const pulse = 0.5 + 0.5 * Math.sin(time * Math.PI * 3);
       alarmColor.copy(warningColor).lerp(dangerColor, Math.min(1, activity / 0.8));
       alarmBackground.copy(warningBackground).lerp(dangerBackground, Math.min(1, activity / 0.8));
       if (alarmed) accent.color.copy(alarmColor);
-      else accent.color.set('#6cd9b7');
-      accent.intensity = alarmed ? 20 + activity * 12 + pulse * (6 + activity * 16) : 16;
+      else accent.color.set(drinking ? '#ffbd70' : '#6cd9b7');
+      accent.intensity = alarmed ? 20 + activity * 12 + pulse * (6 + activity * 16) : drinking ? 20 : 16;
+      key.color.set(drinking ? '#ffd6a0' : '#ffe9c6');
       siren.rotation.y = time * 4;
       siren.children.forEach(object => {
         if (object instanceof THREE.SpotLight) {
@@ -94,12 +98,14 @@ export function WorldScene({ state }: { state: FlyState }) {
       alarmMaterial.opacity = alarmed ? 0.2 + pulse * (0.15 + activity * 0.2) : 0;
       alarmRing.scale.setScalar(1 + (alarmed ? pulse * 0.06 : 0));
       (scene.background as THREE.Color).copy(normalBackground).lerp(alarmBackground, alarmed ? 0.45 + pulse * 0.25 : 0);
+      if (drinking) (scene.background as THREE.Color).lerp(coffeeBackground, 0.7);
       (scene.fog as THREE.Fog).color.copy(scene.background as THREE.Color);
       controls.update();
       renderer.render(scene, camera);
     });
     return () => {
       observer.disconnect();
+      soundChannel?.close();
       renderer.setAnimationLoop(null);
       controls.dispose();
       const geometries = new Set<THREE.BufferGeometry>();
