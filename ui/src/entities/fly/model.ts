@@ -3,6 +3,7 @@ import type { FlyState } from './state';
 import { createCoffeeCup } from './coffeeCup.ts';
 import { createKeyboard } from './keyboard.ts';
 import { createAnalysisProps } from './analysisProps.ts';
+import { createSmokingBreak, smokingPose } from './smokingBreak.ts';
 
 export function createFly(onCoffeeSip?: () => void, onKeyPress?: () => void) {
   const root = new THREE.Group();
@@ -104,6 +105,9 @@ export function createFly(onCoffeeSip?: () => void, onKeyPress?: () => void) {
   body.add(keyboard.root);
   const analysisProps = createAnalysisProps();
   body.add(analysisProps.root);
+  const smokingBreak = createSmokingBreak();
+  body.add(smokingBreak.root);
+  const mouth = new THREE.Vector3();
   const frontArms = new THREE.Group();
   body.add(frontArms);
   const segmentGeometry = new THREE.CylinderGeometry(0.032, 0.04, 1, 8);
@@ -124,6 +128,8 @@ export function createFly(onCoffeeSip?: () => void, onKeyPress?: () => void) {
   let coffeeTime = 0;
   let workingTime = 0;
   let analysisTime = 0;
+  let breakTime = 0;
+  let wasOnBreak = false;
   let wasSipping = false;
 
   return {
@@ -133,11 +139,16 @@ export function createFly(onCoffeeSip?: () => void, onKeyPress?: () => void) {
       const drinking = state.behavior === 'coffee';
       const working = state.behavior === 'working';
       const analyzing = state.behavior === 'analyzing';
+      const onBreak = state.behavior === 'break';
       const delta = previousTime === null ? 0 : Math.max(0, Math.min(0.1, time - previousTime));
       previousTime = time;
       coffeeTime = drinking ? coffeeTime + delta * (0.8 + state.activity * 0.4) : 0;
       workingTime = working ? workingTime + delta * (3.5 + state.activity * 7) : 0;
       analysisTime = analyzing ? analysisTime + delta * (0.6 + state.activity * 1.2) : 0;
+      breakTime = onBreak ? breakTime + delta * (0.75 + state.activity * 0.5) : 0;
+      if (wasOnBreak && !onBreak) smokingBreak.reset();
+      wasOnBreak = onBreak;
+      const smokePose = onBreak ? smokingPose(breakTime) : null;
       const inspection = analyzing ? analysisProps.update(analysisTime) : null;
       const typing = working ? keyboard.update(workingTime, onKeyPress) : null;
       if (!working) keyboard.reset();
@@ -159,23 +170,36 @@ export function createFly(onCoffeeSip?: () => void, onKeyPress?: () => void) {
         head.rotation.x = 0.11 + inspection.lean * 0.025;
         head.rotation.z = -0.05 + inspection.lean * 0.035;
       }
+      if (smokePose) {
+        body.rotation.x = -0.025;
+        body.rotation.z = Math.sin(breakTime * 0.4) * 0.018;
+        head.rotation.y = Math.sin(breakTime * 0.55) * 0.12 * (1 - smokePose.draw);
+        head.rotation.x = smokePose.draw * 0.04 - smokePose.exhale * 0.06;
+        head.rotation.z = Math.sin(breakTime * 0.35) * 0.025;
+      }
       wings.forEach((wing, index) => {
-        wing.rotation.z = (index === 0 ? -1 : 1) * (alarmed ? 0.35 + Math.sin(time * 48) * 0.24 * alarmActivity : drinking || working || analyzing ? 0.04 + Math.sin(time * 2) * 0.025 : 0.08 + Math.sin(time * 4) * state.activity * 0.3);
+        wing.rotation.z = (index === 0 ? -1 : 1) * (alarmed ? 0.35 + Math.sin(time * 48) * 0.24 * alarmActivity : drinking || working || analyzing || onBreak ? 0.04 + Math.sin(time * 2) * 0.025 : 0.08 + Math.sin(time * 4) * state.activity * 0.3);
       });
       legs.forEach((leg, index) => {
         const front = index % 3 === 0;
-        leg.visible = !((drinking || working || analyzing) && front);
+        leg.visible = !((drinking || working || analyzing || onBreak) && front);
         leg.rotation.x = alarmed ? (front ? -0.45 : 0) + Math.sin(time * 16 + index) * 0.12 * alarmActivity : 0;
         leg.rotation.z = alarmed && front ? (index < 3 ? -1 : 1) * 0.18 : 0;
       });
       cup.root.visible = drinking;
       keyboard.root.visible = working;
       analysisProps.root.visible = analyzing;
-      frontArms.visible = drinking || working || analyzing;
+      smokingBreak.root.visible = onBreak;
+      frontArms.visible = drinking || working || analyzing || onBreak;
       if (drinking) cup.update(time, sip);
-      if (drinking || working || analyzing) {
+      mouth.set(0, -0.27, -0.44).applyEuler(head.rotation).add(head.position);
+      const cigaretteGrip = onBreak ? smokingBreak.update(breakTime, delta, mouth) : null;
+      if (drinking || working || analyzing || onBreak) {
         frontLimbs.forEach(limb => {
-          if (inspection) {
+          if (cigaretteGrip) {
+            if (limb.side === 1) limb.grip.copy(cigaretteGrip);
+            else limb.grip.set(-0.58, 0.46 + Math.sin(breakTime * 0.5) * 0.02, -0.76);
+          } else if (inspection) {
             limb.grip.copy(limb.side === 1 ? inspection.magnifierGrip : inspection.reportGrip);
           } else if (typing) {
             limb.grip.copy(limb.side === -1 ? typing.left : typing.right);
@@ -206,7 +230,6 @@ export function createFly(onCoffeeSip?: () => void, onKeyPress?: () => void) {
           }
         });
       }
-      root.rotation.y = state.behavior === 'break' ? -0.45 : 0;
     },
   };
 }

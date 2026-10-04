@@ -89,6 +89,7 @@ Its embedded UI is the last build, not live source; rebuild for release checks.
 | `ui/src/entities/fly/coffeeCup.ts` | Fly-owned mug prop, visible drink, crema, and animated steam wisps |
 | `ui/src/entities/fly/keyboard.ts` | Fly-owned keyboard prop, key travel, alternating typing targets, and thinking pauses |
 | `ui/src/entities/fly/analysisProps.ts` | Fly-owned magnifying glass and decorative chart, inspection motion and grip targets |
+| `ui/src/entities/fly/smokingBreak.ts` | Cigarette, ember, smoke wisps, pooled exhalation puffs, and draw/exhale timing |
 | `ui/src/features/presentation-sound/SoundControls.tsx` | Lab-wide volume/mute, siren synthesis, sip and keyboard sound playback |
 | `ui/src/widgets/world-scene/WorldScene.tsx` | Camera, floor/grid, lights, render loop, cleanup |
 | `ui/src/features/presentation-rules/liveFly.ts` | Live/manual resolution and artistic mappings |
@@ -120,8 +121,18 @@ The coffee limbs use a two-segment joint solve with lengths based on the normal
 front legs, plus matching feet; reaching changes the bend rather than limb length.
 Activity adjusts the speed of an accumulated animation clock without phase jumps.
 Steam uses mesh geometry/materials covered by the
-existing scene cleanup, without textures or particles. Break turns the body; these
-are previews, not complete drinking/walking sequences. Working uses the same
+existing scene cleanup, without textures or particles. Break keeps the same facing
+direction as other behaviors and holds a cigarette low between occasional draws,
+lowering it before exhaling.
+The filter, paper, ash, and emissive ember are procedural meshes; the ember brightens
+during a draw. Thin smoke wisps rise from the tip, and a fixed pool of translucent
+mesh puffs expands and drifts from the mouth during exhalation. Puff origins stay
+where they were emitted rather than following the moving hand/head. All smoke
+uses standard mesh geometry/materials covered by scene cleanup; leaving break
+clears the puff pool. Front limbs retain their normal segment lengths and anchored
+shoulders. Activity smoothly adjusts an accumulated break clock, with long resting
+intervals and relaxed head/wing movement. These are presentation previews, not
+complete drinking/walking sequences. Working uses the same
 fixed-length front limb pose solver to alternate keypresses on a small keyboard,
 with moving keycaps, indicator lights, legends, a spacebar, and a cable. Activity
 smoothly adjusts an accumulated typing clock. Key/hand choices and intervals are
@@ -156,7 +167,8 @@ after the user enables it and fades out when the alarm ends. Keep that tab open
 when previewing the dashboard.
 
 The scene currently contains the fly, a floor, and a grid. No server, plant,
-room, smoke/fire particles, cigarette, or speech system is implemented.
+room, world smoke/fire particles, or speech system is implemented. The cigarette
+and its mesh-based smoke belong to the fly's break prop.
 Routing uses pathname checks and ordinary links, not React Router. Adding a new
 page requires updating both frontend routing and `ui/embed.go`/route checks.
 

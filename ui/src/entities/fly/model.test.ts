@@ -3,6 +3,7 @@ import test from 'node:test';
 import * as THREE from 'three';
 import { createFly } from './model.ts';
 import { createKeyboard } from './keyboard.ts';
+import { smokingPose } from './smokingBreak.ts';
 import type { FlyState } from './state.ts';
 
 test('coffee signals one sound per sip without restarting when activity changes', () => {
@@ -69,6 +70,28 @@ test('typing has irregular gaps, silent pauses, and no replay after a stalled fr
   } finally {
     dispose(keyboard.root);
   }
+});
+
+test('a smoking break rests between draws and exhales only after lowering the cigarette', () => {
+  let drawSeen = false;
+  let exhaleSeen = false;
+  let restingFrames = 0;
+  for (let frame = 0; frame < 1200; frame++) {
+    const pose = smokingPose(frame / 100);
+    if (pose.draw > 0) {
+      drawSeen = true;
+      assert.equal(pose.exhale, 0, 'no exhale while the cigarette is at the mouth');
+    }
+    if (pose.exhale > 0) {
+      assert.ok(drawSeen, 'a draw precedes exhalation');
+      assert.equal(pose.draw, 0);
+      exhaleSeen = true;
+    }
+    if (pose.draw === 0 && pose.exhale === 0) restingFrames++;
+  }
+  assert.ok(drawSeen && exhaleSeen);
+  assert.ok(restingFrames > 600, 'most of the break is spent resting');
+  assert.deepEqual(smokingPose(12), smokingPose(0), 'the cycle returns smoothly to rest');
 });
 
 function dispose(root: THREE.Object3D) {
