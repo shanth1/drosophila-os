@@ -1,4 +1,4 @@
-package main
+package malecns
 
 import (
 	"errors"
@@ -57,8 +57,12 @@ func TestMappingCSRAndRoundtrip(t *testing.T) {
 	if err := os.WriteFile(path, []byte("old output"), 0600); err != nil {
 		t.Fatal(err)
 	}
-	if err := writeConnectome(path, conn); err != nil {
+	stats, err := Import(csvPath, path)
+	if err != nil {
 		t.Fatal(err)
+	}
+	if stats.Neurons != want.NumNeurons || stats.Synapses != want.NumEdges {
+		t.Fatalf("unexpected import statistics: %+v", stats)
 	}
 	loaded, err := engine.LoadEngine(path)
 	if err != nil {
@@ -71,6 +75,29 @@ func TestMappingCSRAndRoundtrip(t *testing.T) {
 }
 
 type failingWriter struct{ remaining int }
+
+func TestImportFailurePreservesOutput(t *testing.T) {
+	dir := t.TempDir()
+	csvPath := filepath.Join(dir, "invalid.csv")
+	outPath := filepath.Join(dir, "existing.bin")
+	if err := os.WriteFile(csvPath, []byte(csvHeader+"1,2,invalid\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(outPath, []byte("original"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	for _, path := range []string{csvPath, filepath.Join(dir, "missing.csv")} {
+		stats, err := Import(path, outPath)
+		if err == nil || stats != (Stats{}) {
+			t.Fatalf("expected failed import with no statistics, got %+v, %v", stats, err)
+		}
+		data, err := os.ReadFile(outPath)
+		if err != nil || string(data) != "original" {
+			t.Fatalf("destination changed: %q, %v", data, err)
+		}
+		assertNoTemps(t, dir)
+	}
+}
 
 func (w *failingWriter) Write(p []byte) (int, error) {
 	if len(p) > w.remaining {

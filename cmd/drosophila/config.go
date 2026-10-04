@@ -5,17 +5,12 @@ import (
 	"flag"
 	"fmt"
 	"io"
+
+	"github.com/shanth1/drosophila-os/internal/app"
 )
 
-type Config struct {
-	Mode          string
-	BrainPath     string
-	TickLimit     int
-	ListenAddress string
-}
-
-func parseConfig(args []string, helpOutput io.Writer) (Config, error) {
-	var cfg Config
+func parseConfig(args []string, helpOutput io.Writer) (app.Config, error) {
+	var cfg app.Config
 	flags := flag.NewFlagSet("drosophila", flag.ContinueOnError)
 	flags.SetOutput(io.Discard)
 	flags.StringVar(&cfg.Mode, "mode", "test", "backend mode: test (fixed sensor) or brain (experimental graph)")
@@ -27,22 +22,13 @@ func parseConfig(args []string, helpOutput io.Writer) (Config, error) {
 			flags.SetOutput(helpOutput)
 			flags.Usage()
 		}
-		return Config{}, err
+		return app.Config{}, err
 	}
 	if flags.NArg() != 0 {
-		return Config{}, fmt.Errorf("unexpected arguments: %v", flags.Args())
+		return app.Config{}, fmt.Errorf("unexpected arguments: %v", flags.Args())
 	}
-	if cfg.Mode != "test" && cfg.Mode != "brain" {
-		return Config{}, fmt.Errorf("mode must be test or brain")
-	}
-	if cfg.ListenAddress == "" {
-		return Config{}, fmt.Errorf("listen address must not be empty")
-	}
-	if cfg.BrainPath == "" {
-		return Config{}, fmt.Errorf("brain path must not be empty")
-	}
-	if cfg.TickLimit < 0 {
-		return Config{}, fmt.Errorf("ticks must be non-negative")
+	if err := cfg.Validate(); err != nil {
+		return app.Config{}, err
 	}
 	return cfg, nil
 }

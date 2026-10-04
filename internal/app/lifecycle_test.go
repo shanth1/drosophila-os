@@ -1,4 +1,4 @@
-package main
+package app
 
 import (
 	"context"
@@ -99,7 +99,7 @@ func TestOccupiedAddressFailsBeforeBackend(t *testing.T) {
 	defer listener.Close()
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	cfg := Config{Mode: "brain", BrainPath: "missing.bin", ListenAddress: listener.Addr().String()}
-	if err := run(context.Background(), cfg, logger); err == nil || !strings.Contains(err.Error(), "listen:") {
+	if err := Run(context.Background(), cfg, logger); err == nil || !strings.Contains(err.Error(), "listen:") {
 		t.Fatalf("expected listen failure before graph loading, got %v", err)
 	}
 }

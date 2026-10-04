@@ -30,6 +30,10 @@
             Write code that is self-explanatory and built for the long term. Prefer explicit, readable code over clever, condensed hacks. In the SNN Engine, prioritize Data-Oriented Design (DoD) for CPU cache efficiency, but keep it readable.
         </principle>
 
+        <principle name="Thin Command Entrypoints" importance="CRITICAL">
+            Keep cmd/ limited to CLI argument parsing, logging setup, signal handling, exit codes, and calls into internal packages. Application lifecycle and backend composition belong in internal/app; connectome import logic belongs in internal/malecns. Keep engine math and WASM ABI/lifecycle in their existing dedicated packages. Place implementation tests alongside their owning package and keep only CLI tests in cmd/. Internal packages must not parse flags or terminate the process. Incremental delivery must preserve these boundaries from the first step; small milestones are not an excuse for temporary architectural debt.
+        </principle>
+
         <principle name="Zero Dependency Constraints" importance="CRITICAL">
             The system MUST compile into a single, portable binary. Strictly NO CGO. All UI assets, default WASM plugins, and weights must use Go's `//go:embed`. Third-party Go packages must be kept to an absolute minimum (e.g., `wazero`, `badgerdb`).
         </principle>

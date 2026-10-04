@@ -12,6 +12,11 @@ experimental graph/random sensor. There is no `demo` or standalone `ui` mode.
 Failure of either component cancels and joins the other. The `/brain` page is an
 explicit placeholder, and frontend telemetry is not connected yet.
 
+Go runtime composition lives in `internal/app`, not `cmd/drosophila`. CLI parsing
+and process signals stay in `cmd/`; future HTTP/API composition belongs in the
+application layer, with reusable transport and domain logic in dedicated internal
+packages as needed. Keep this boundary when implementing the remaining stages.
+
 The current laboratory controls behavior/activity directly. Event injection,
 priority arbitration, full coffee/break sequences, props beyond a cup, and live
 telemetry adaptation are still pending. The `live` label currently means the

@@ -77,7 +77,7 @@ make check
 Output events occur on ticks 3, 5, 7, and so on.
 Sensor calls, engine ticks, and output observation share one sequential loop;
 the test runtime does not use the asynchronous sensor Manager. Read
-`cmd/drosophila/test_runtime.go` and `plugins/src/sensor_fixed/main.go` to follow it.
+`internal/app/test_runtime.go` and `plugins/src/sensor_fixed/main.go` to follow it.
 `examples/pipeline` remains an independent deterministic test of the same
 signal path, without the application's timer or embedded sensor. The old
 three-step demo is no longer an application mode. The current test runtime still
@@ -179,8 +179,9 @@ Only CLI flags configure the host: `-mode` defaults to `test` (or select `brain`
 and `-ticks` defaults to `0` (runs until interrupted). HTTP/UI always uses `-listen`
 (default `127.0.0.1:8080`). A positive tick limit stops both HTTP and the backend. For the previous
 300-tick large-graph run, specify `-mode brain -ticks 300`. No YAML file or
-environment overrides are used. `cmd/drosophila/config.go` parses and validates
-flags using a local `FlagSet`; `run(ctx, cfg, logger)` executes the application
+environment overrides are used. `cmd/drosophila/config.go` parses
+flags using a local `FlagSet` and calls `app.Config.Validate`;
+`internal/app.Run(ctx, cfg, logger)` validates and executes the application
 without parsing flags or installing signal handlers.
 
 Help is written to stdout; diagnostics and neural activity statistics are
@@ -196,12 +197,14 @@ There is no log-file rotation, custom logging wrapper, or JSON-output flag.
 
 ## Follow One Signal
 
-For the default test runtime, read `cmd/drosophila/test_runtime.go` first. For brain mode, follow
+For the default test runtime, read `internal/app/test_runtime.go` first. For brain mode, follow
 these files rather than starting with the architecture roadmap:
 
 1. `cmd/drosophila/`: `config.go` parses CLI flags; `main.go` installs signal
-   handlers, creates the logger, and supervises HTTP together with `runTestRuntime`
-   or `runBrain`. `serve.go` handles HTTP serving and bounded graceful shutdown.
+   handlers, creates the logger, and calls `app.Run`. `internal/app/run.go`
+   supervises HTTP and the selected backend. `internal/app/serve.go` handles HTTP
+   serving and bounded graceful shutdown; `internal/app/brain.go` runs the
+   biological graph. Runtime configuration is owned by `internal/app/config.go`.
 2. `plugins/src/sensor_random/main.go`: exports `tick()` and sends a random
    `float32` in `[0, 1)` to neuron `100` every 50 ms.
 3. `internal/wasm/abi_input.go`: implements `env.host_emit_signal(i32, i32)`.
@@ -217,8 +220,9 @@ these files rather than starting with the architecture roadmap:
    voltages to zero, thresholds to `1`, and leak rates to `0.05` per tick.
 7. `internal/wasm/manager.go`: initializes the WASI reactor, polls `tick()` in a
    separate goroutine, reports failures, and closes the runtime.
-8. `cmd/malecns-importer/`: `main.go` handles flags; `csv.go` maps biological IDs
-   to dense indices and scales weights by `0.05`; `binary.go` writes the graph.
+8. `cmd/malecns-importer/main.go` handles flags and calls `malecns.Import`.
+   `internal/malecns/csv.go` maps biological IDs to dense indices and scales weights
+   by `0.05`; `internal/malecns/binary.go` atomically writes the graph.
 
 In brain mode, two clocks are independent: sensor sampling is every 50 ms;
 biological ticks are every 10 ms. The test runtime uses one 250 ms clock. These are
@@ -264,7 +268,9 @@ is a draft, with context length and memory ownership still unresolved.
 
 ### Code Map And Labs
 
-`cmd/` contains the console host and offline CSV importer; `internal/engine/`
+`cmd/` contains thin CLI entrypoints for the host and offline CSV importer.
+`internal/app/` composes the host runtime; `internal/malecns/` owns CSV import and
+binary output. `internal/engine/`
 contains graph loading and SNN math; `internal/wasm/` contains the input ABI and
 sensor lifecycle; `plugins/` contains the embedded sensors and their sources.
 `download_brain.py` obtains the CSV separately; the Go importer does not call

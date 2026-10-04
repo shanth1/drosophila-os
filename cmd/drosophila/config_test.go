@@ -7,18 +7,20 @@ import (
 	"io"
 	"strings"
 	"testing"
+
+	"github.com/shanth1/drosophila-os/internal/app"
 )
 
 func TestParseConfig(t *testing.T) {
 	for _, tc := range []struct {
 		name string
 		args []string
-		want Config
+		want app.Config
 	}{
-		{"defaults", nil, Config{Mode: "test", BrainPath: "data/male_cns.bin", TickLimit: 0, ListenAddress: "127.0.0.1:8080"}},
-		{"overrides", []string{"-mode", "brain", "-brain", "custom.bin", "-ticks", "10"}, Config{Mode: "brain", BrainPath: "custom.bin", TickLimit: 10, ListenAddress: "127.0.0.1:8080"}},
-		{"unlimited", []string{"-ticks", "0"}, Config{Mode: "test", BrainPath: "data/male_cns.bin", TickLimit: 0, ListenAddress: "127.0.0.1:8080"}},
-		{"test address", []string{"-mode", "test", "-listen", "127.0.0.1:8090"}, Config{Mode: "test", BrainPath: "data/male_cns.bin", TickLimit: 0, ListenAddress: "127.0.0.1:8090"}},
+		{"defaults", nil, app.Config{Mode: "test", BrainPath: "data/male_cns.bin", TickLimit: 0, ListenAddress: "127.0.0.1:8080"}},
+		{"overrides", []string{"-mode", "brain", "-brain", "custom.bin", "-ticks", "10"}, app.Config{Mode: "brain", BrainPath: "custom.bin", TickLimit: 10, ListenAddress: "127.0.0.1:8080"}},
+		{"unlimited", []string{"-ticks", "0"}, app.Config{Mode: "test", BrainPath: "data/male_cns.bin", TickLimit: 0, ListenAddress: "127.0.0.1:8080"}},
+		{"test address", []string{"-mode", "test", "-listen", "127.0.0.1:8090"}, app.Config{Mode: "test", BrainPath: "data/male_cns.bin", TickLimit: 0, ListenAddress: "127.0.0.1:8090"}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			got, err := parseConfig(tc.args, io.Discard)

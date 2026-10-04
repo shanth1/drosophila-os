@@ -1,4 +1,4 @@
-package main
+package app
 
 import (
 	"bytes"
@@ -17,7 +17,7 @@ func TestRunFixedSensorPipeline(t *testing.T) {
 	logger := slog.New(slog.NewJSONHandler(&output, &slog.HandlerOptions{Level: slog.LevelDebug}))
 	// An absent graph path proves the test runtime does not load external data.
 	cfg := Config{Mode: "test", BrainPath: "unused.bin", TickLimit: 6, ListenAddress: "127.0.0.1:0"}
-	if err := run(ctx, cfg, logger); err != nil {
+	if err := Run(ctx, cfg, logger); err != nil {
 		t.Fatal(err)
 	}
 

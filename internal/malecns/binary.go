@@ -1,4 +1,4 @@
-package main
+package malecns
 
 import (
 	"encoding/binary"
