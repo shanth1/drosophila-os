@@ -3,6 +3,7 @@ package app
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -10,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/shanth1/drosophila-os/internal/telemetry"
 	"github.com/shanth1/drosophila-os/internal/testenv"
 )
 
@@ -66,8 +68,14 @@ func TestHTTPPipelineFailureAndRecovery(t *testing.T) {
 	defer cancel()
 	records := make(chan slog.Record, 128)
 	result := make(chan error, 1)
+	hub := newTestHub(t)
+	subscriber, err := hub.Subscribe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { hub.Unsubscribe(subscriber) })
 	go func() {
-		result <- runTestRuntime(ctx, Config{}, slog.New(recordHandler{records}), service.URL+"/health")
+		result <- runTestRuntime(ctx, Config{}, slog.New(recordHandler{records}), service.URL+"/health", hub)
 	}()
 	t.Cleanup(func() {
 		cancel()
@@ -121,6 +129,51 @@ func TestHTTPPipelineFailureAndRecovery(t *testing.T) {
 				t.Fatal("output continued after healthy recovery")
 			}
 		case <-window.C:
+			data, err := hub.Snapshot()
+			if err != nil {
+				t.Fatal(err)
+			}
+			var snapshot telemetry.Message
+			if err := json.Unmarshal(data, &snapshot); err != nil {
+				t.Fatal(err)
+			}
+			var state telemetry.State
+			if err := json.Unmarshal(snapshot.Payload, &state); err != nil {
+				t.Fatal(err)
+			}
+			if state.Brain.OutputEvents == 0 || state.Brain.LastOutputAt == nil || len(state.Observations) != 1 {
+				t.Fatalf("runtime snapshot omitted output or observation state: %+v", state)
+			}
+			measurement, err := json.Marshal(state.Observations[0].Data)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var response telemetry.HTTPResponse
+			if err := json.Unmarshal(measurement, &response); err != nil {
+				t.Fatal(err)
+			}
+			if response.StatusCode != 200 {
+				t.Fatalf("snapshot did not reflect HTTP recovery: %+v", response)
+			}
+			found := false
+			for len(subscriber.Updates) > 0 {
+				var message telemetry.Message
+				if err := json.Unmarshal(<-subscriber.Updates, &message); err != nil {
+					t.Fatal(err)
+				}
+				if message.Type == "event" {
+					var event telemetry.Event
+					if err := json.Unmarshal(message.Payload, &event); err != nil {
+						t.Fatal(err)
+					}
+					if event.Name == "neural.output.spike" && event.Subject == "test-network" {
+						found = true
+					}
+				}
+			}
+			if !found {
+				t.Fatal("runtime did not publish output events to the stream")
+			}
 			return
 		}
 	}
@@ -135,7 +188,7 @@ func TestSlowHTTPDoesNotBlockEngineTicks(t *testing.T) {
 	defer cancel()
 	var output bytes.Buffer
 	logger := slog.New(slog.NewTextHandler(&output, &slog.HandlerOptions{Level: slog.LevelDebug}))
-	if err := runTestRuntime(ctx, Config{TickLimit: 3}, logger, service.URL); err != nil {
+	if err := runTestRuntime(ctx, Config{TickLimit: 3}, logger, service.URL, newTestHub(t)); err != nil {
 		t.Fatal(err)
 	}
 	if states := strings.Count(output.String(), `msg="test runtime state"`); states != 3 {
@@ -144,4 +197,14 @@ func TestSlowHTTPDoesNotBlockEngineTicks(t *testing.T) {
 	if strings.Contains(output.String(), "HTTP observation") {
 		t.Fatal("the blocked HTTP request unexpectedly completed before the tick limit")
 	}
+}
+
+func newTestHub(t *testing.T) *telemetry.Hub {
+	t.Helper()
+	hub, err := telemetry.New(telemetry.State{Mode: "test", Status: "starting"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(hub.Close)
+	return hub
 }

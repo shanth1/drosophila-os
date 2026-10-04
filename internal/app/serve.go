@@ -7,13 +7,7 @@ import (
 	"net"
 	"net/http"
 	"time"
-
-	"github.com/shanth1/drosophila-os/ui"
 )
-
-func serveUI(ctx context.Context, listener net.Listener, logger *slog.Logger) error {
-	return serveHTTP(ctx, listener, ui.Handler(), logger, "frontend listening")
-}
 
 func serveHTTP(ctx context.Context, listener net.Listener, handler http.Handler, logger *slog.Logger, message string) error {
 	server := &http.Server{

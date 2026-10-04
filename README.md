@@ -12,8 +12,9 @@ controlled HTTP service -> host probe ABI -> WASM sensor -> three-neuron SNN -> 
 
 The first frontend milestone uses React, TypeScript, Vite, and direct Three.js.
 It provides one original procedural fly, orbit/zoom controls, basic behavior
-previews, and a same-origin cross-tab presentation laboratory. No backend
-telemetry or monitoring behavior is connected yet.
+previews, and a same-origin cross-tab presentation laboratory. The dashboard
+receives real host overview telemetry; an alert gesture means an output spike,
+not an anomaly diagnosis.
 
 Frontend development requires Node.js 22.12+ (or a compatible modern release)
 and npm. Start the independent development server:
@@ -24,8 +25,18 @@ make ui-dev
 
 Open the URL printed by Vite. Open `/lab` in a neighboring tab to select idle,
 working, alarmed, coffee, or break and adjust activity. Controls use
-BroadcastChannel and affect presentation only. `/brain` describes planned real
-telemetry; it does not fabricate neural activity.
+BroadcastChannel and affect presentation only. `/brain` shows real aggregate
+counters and module descriptions, not anatomical coordinates.
+
+For live data, run `make run` in another terminal. Vite proxies HTTP/WebSocket
+under `/api` to `http://127.0.0.1:8080`. For a different backend address:
+
+```sh
+DROSOPHILA_API_URL=http://127.0.0.1:8090 make ui-dev
+```
+
+The scene and manual laboratory can still run without Go. The dashboard explicitly
+shows disconnection rather than interpreting missing data as normal operation.
 
 Build and serve the embedded UI:
 
@@ -92,7 +103,9 @@ curl -X PUT http://127.0.0.1:8081/control -H 'Content-Type: application/json' \
 `PUT /control` replaces the configuration. Valid status codes are 200..599 and
 delays are 0..5000 ms. In-flight requests keep their initial configuration.
 `GET /health` responds according to it. Controls are separate from `/lab`, which
-still affects graphics only. The fly is not connected to host telemetry yet.
+still affects graphics only. In live mode output spikes briefly trigger the fly's
+alert behavior. In manual mode lab controls override animation while telemetry
+keeps updating. Use "Return to live telemetry" to release the override.
 
 Sensor polling and engine ticks run independently at nominal 250 ms intervals;
 slow HTTP requests do not block the engine. Their phase is not deterministic.
@@ -196,6 +209,25 @@ of the required `_initialize` and can fail with `runtime.notInitialized`.
 On a fresh checkout, run `make plugins ui-build` before building the host or running
 `go test ./...` directly: `go:embed` requires generated sensor and frontend files.
 
+### Read-only Host API
+
+`GET /api/v1/snapshot` returns the current versioned overview. WebSocket
+`/api/v1/stream` first sends an authoritative snapshot, then ordered full-state
+updates and domain events. Envelopes carry API version, run ID, sequence, and
+timestamp. A process restart gets a new run ID. Slow clients disconnect and
+recover from a fresh snapshot; old output events are not replayed as animations.
+
+```sh
+curl http://127.0.0.1:8080/api/v1/snapshot
+```
+
+The overview contains engine counters, modules/capabilities, entities, and last
+HTTP observations. HTTP response state is separate from neural output events.
+Brain mode provides counters but has no mapped semantic output neuron yet.
+The dashboard indicates connection loss and keeps counters as last known; it
+automatically reconnects. `/brain` shows sampled-tick counts, not a spike rate.
+Protocol details and limitations are in `.AGENTS/API.md`.
+
 ### Configuration And Logs
 
 Only CLI flags configure the host: `-mode` defaults to `test` (or select `brain`),
@@ -285,10 +317,11 @@ The default test runtime drives a small network from real HTTP observations;
 exact event ticks depend on independent clocks. The biological graph remains
 an experimental mode. The fixed sensor remains an ABI regression fixture.
 
-Implemented frontend preview: embedded HTTP static serving, procedural fly,
-dashboard, and cross-tab visual laboratory. This is not a host telemetry API.
+Implemented frontend: embedded HTTP static serving, procedural fly, live dashboard,
+cross-tab manual laboratory, and brain overview counters. The read-only host API
+provides snapshots and ordered WebSocket state/events; it is not an action API.
 
-Roadmap only: HTTP host telemetry API, WebSocket, effectors,
+Roadmap only: detailed neural inspection, environment scene objects, effectors,
 proprietary plugin loading from disk, learning, database, and snapshots.
 Empty/package-only placeholders for these features and the empty YAML file
 have been removed; no implementation was removed. Documents under `.AGENTS/`
@@ -301,7 +334,9 @@ is a draft, with context length and memory ownership still unresolved.
 `internal/app/` composes the host runtime; `internal/malecns/` owns CSV import and
 binary output. `internal/engine/`
 contains graph loading and SNN math; `internal/wasm/` contains the input ABI and
-sensor lifecycle; `internal/httpmonitor/` owns HTTP measurement and
+sensor lifecycle; `internal/telemetry/` owns serialized state/subscriptions and
+`internal/hostapi/` owns read-only HTTP/WebSocket transport.
+`internal/httpmonitor/` owns HTTP measurement and
 `internal/testenv/` owns the controlled external service. `plugins/` contains the
 embedded sensors and their sources.
 `download_brain.py` obtains the CSV separately; the Go importer does not call
@@ -331,6 +366,10 @@ HTTP sensor normalization/capability enforcement, failure/recovery through the
 real HTTP/WASM/SNN path, independent engine ticks during blocked probes,
 test-environment validation, always-on HTTP, shared shutdown, component failures,
 and occupied listen addresses.
+Frontend tests additionally check the shared Go/TypeScript wire fixture, payload
+validation, sequence recovery, manual overrides, and gesture expiry. Backend
+tests cover ordered snapshot/stream handoff, reconnection, slow-subscriber
+eviction, immutable snapshots, and WebSocket shutdown. `make check` runs both.
 They do not establish biological validity, incident-detection quality, or
 production performance of the large graph.
 

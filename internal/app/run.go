@@ -7,8 +7,12 @@ import (
 	"fmt"
 	"log/slog"
 	"net"
+	"net/http"
 
+	"github.com/shanth1/drosophila-os/internal/hostapi"
+	"github.com/shanth1/drosophila-os/internal/telemetry"
 	"github.com/shanth1/drosophila-os/internal/testenv"
+	"github.com/shanth1/drosophila-os/ui"
 )
 
 // Run serves the embedded UI alongside the selected backend until cancellation,
@@ -33,6 +37,16 @@ func runWithListener(ctx context.Context, cfg Config, logger *slog.Logger, liste
 	defer listener.Close()
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
+	hub, err := telemetry.New(telemetry.State{Mode: cfg.Mode, Status: "starting"})
+	if err != nil {
+		return err
+	}
+	defer hub.Close()
+	api := hostapi.New(hub)
+	defer api.Close()
+	mux := http.NewServeMux()
+	mux.Handle("/api/v1/", api)
+	mux.Handle("/", ui.Handler())
 	results := make(chan error, 3)
 	components := 2
 	var targetURL string
@@ -55,8 +69,8 @@ func runWithListener(ctx context.Context, cfg Config, logger *slog.Logger, liste
 		components++
 		go func() { results <- serveHTTP(ctx, testListener, testenv.New(), logger, "test environment listening") }()
 	}
-	go func() { results <- serveUI(ctx, listener, logger) }()
-	go func() { results <- runBackend(ctx, cfg, logger, targetURL) }()
+	go func() { results <- serveHTTP(ctx, listener, mux, logger, "frontend listening") }()
+	go func() { results <- runBackend(ctx, cfg, logger, targetURL, hub) }()
 	first := <-results
 	// Failure, an explicit tick limit, or Ctrl+C ends the entire application.
 	cancel()
@@ -66,12 +80,12 @@ func runWithListener(ctx context.Context, cfg Config, logger *slog.Logger, liste
 	return first
 }
 
-func runBackend(ctx context.Context, cfg Config, logger *slog.Logger, targetURL string) error {
+func runBackend(ctx context.Context, cfg Config, logger *slog.Logger, targetURL string, hub *telemetry.Hub) error {
 	switch cfg.Mode {
 	case "test":
-		return runTestRuntime(ctx, cfg, logger, targetURL)
+		return runTestRuntime(ctx, cfg, logger, targetURL, hub)
 	case "brain":
-		return runBrain(ctx, cfg, logger)
+		return runBrain(ctx, cfg, logger, hub)
 	default:
 		return fmt.Errorf("mode must be test or brain")
 	}

@@ -8,11 +8,12 @@ import (
 	"time"
 
 	"github.com/shanth1/drosophila-os/internal/engine"
+	"github.com/shanth1/drosophila-os/internal/telemetry"
 	"github.com/shanth1/drosophila-os/internal/wasm"
 	"github.com/shanth1/drosophila-os/plugins"
 )
 
-func runBrain(ctx context.Context, cfg Config, logger *slog.Logger) (err error) {
+func runBrain(ctx context.Context, cfg Config, logger *slog.Logger, hub *telemetry.Hub) (err error) {
 	logger.Info("application starting", "brain", cfg.BrainPath)
 
 	eng, err := engine.LoadEngine(cfg.BrainPath)
@@ -55,6 +56,15 @@ func runBrain(ctx context.Context, cfg Config, logger *slog.Logger) (err error) 
 		return err
 	}
 	logger.Info("sensor loaded", "sensor", "sensor_random", "interval", 50*time.Millisecond)
+	state := telemetry.State{
+		Mode: "brain", Status: "running",
+		Brain:    telemetry.Brain{Neurons: eng.Conn.NumNeurons, Synapses: eng.Conn.NumEdges},
+		Modules:  []telemetry.Module{{ID: "sensor_random", Kind: "sensor", Status: "running", Capabilities: []string{"signal.normalized.v1"}}},
+		Entities: []telemetry.Entity{{ID: "brain-network", Kind: "neural-network", Label: "Experimental biological graph"}},
+	}
+	if err := hub.Publish(state, nil); err != nil {
+		return err
+	}
 
 	ticker := time.NewTicker(10 * time.Millisecond)
 	defer ticker.Stop()
@@ -79,6 +89,13 @@ func runBrain(ctx context.Context, cfg Config, logger *slog.Logger) (err error) 
 			}
 		}
 		totalSpikes += uint64(spikes)
+		// Sample overview telemetry at 10 Hz, not on every biological tick.
+		if tickNum%10 == 0 || (cfg.TickLimit > 0 && tickNum == cfg.TickLimit) {
+			state.Brain.Tick, state.Brain.Spikes, state.Brain.TotalSpikes = uint64(tickNum), uint32(spikes), totalSpikes
+			if err := hub.Publish(state, nil); err != nil {
+				return err
+			}
+		}
 
 		if tickNum%50 == 0 {
 			// Print every 50 ticks (nominally 500ms).

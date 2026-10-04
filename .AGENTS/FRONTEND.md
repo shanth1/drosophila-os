@@ -11,8 +11,10 @@ a three-neuron SNN (latency input, failure input, output); `brain` retains the
 experimental graph/random sensor. There is no `demo` or standalone `ui` mode.
 `-ticks` defaults to zero (unlimited); explicit finite runs stop all components.
 Test mode serves `/health` and `/control` on `-test-listen` (127.0.0.1:8081).
-Failure of any component cancels and joins the others. The `/brain` page is an
-explicit placeholder, and frontend telemetry is not connected yet.
+Failure of any component cancels and joins the others. The dashboard now receives
+real overview state and output events through HTTP/WebSocket. `/brain` shows real
+aggregate counters and module descriptions; detailed inspection is still pending.
+The versioned contract and recovery policy are documented in `API.md`.
 
 Go runtime composition lives in `internal/app`, not `cmd/drosophila`. CLI parsing
 and process signals stay in `cmd/`; future HTTP/API composition belongs in the
@@ -20,9 +22,9 @@ application layer, with reusable transport and domain logic in dedicated interna
 packages as needed. Keep this boundary when implementing the remaining stages.
 
 The current laboratory controls behavior/activity directly. Event injection,
-priority arbitration, full coffee/break sequences, props beyond a cup, and live
-telemetry adaptation are still pending. The `live` label currently means the
-default visual preview, not an active host subscription. BroadcastChannel state
+priority arbitration, full coffee/break sequences, and props beyond a cup are
+still pending. Live mode uses host telemetry; manual lab mode overrides graphics
+without stopping the data subscription. BroadcastChannel state
 is transient and same-origin; do not assume durable synchronization across page
 reloads or independent browser profiles.
 
@@ -80,7 +82,10 @@ Start with built-in behaviors such as idle, working, alarmed, coffee, and break.
 Configuration handles simple mappings, colors, and thresholds. Use TypeScript
 for complex sequences rather than inventing a general-purpose JSON language.
 
-## API direction (not an implemented contract)
+## API direction and implemented overview contract
+
+Read `API.md` for the actual v1 overview API. The general principles below guide
+future capabilities; not every listed concept is implemented.
 
 Keep transport independent of Three.js and artistic concepts. Useful concepts
 are entities, observations, events, actions/results, module descriptions, and
@@ -93,9 +98,9 @@ capabilities. Specialized frontend adapters explicitly support known semantics;
 unknown modules retain a generic representation. Arbitrary JSON cannot provide
 automatic semantic compatibility.
 
-Plan HTTP for snapshots/catalogs/commands and WebSocket for streaming. Select a
-small WebSocket dependency when actually implementing transport; do not implement
-a custom protocol prematurely. Snapshots and updates need coordinated sequence
+HTTP snapshots and WebSocket streaming are implemented with the pure-Go
+`github.com/coder/websocket` library. Catalog/command expansion remains future
+work. Do not implement a custom protocol. Snapshots and updates need coordinated sequence
 numbers, reconnect recovery, and runtime input validation. Replaceable state
 updates and significant events need different delivery policies. Slow clients
 must never block neural ticks. Capture coherent snapshots in the engine owner,
@@ -135,7 +140,8 @@ clearly identifies its layout. The dashboard and brain page observe the same hos
 
 ## Build and delivery
 
-Vite serves development with hot updates; later proxy `/api` to Go. Production
+Vite serves development with hot updates and proxies `/api` including WebSocket
+to Go (configure `DROSOPHILA_API_URL` for a different address). Production
 assets, including Three.js and models, are local and embedded with `go:embed`.
 Node is a build/development dependency only; the delivered Go binary needs no
 Node process or CDN. Build frontend assets before compiling the embedding package.
@@ -160,10 +166,10 @@ independent. `brain` is still experimental, not a production environment mode.
 
 Milestone 5 is being delivered in reviewable stages: (a) unified HTTP/backend
 lifetime and continuous test execution (implemented), (b) controlled external
-HTTP service and sensor (implemented), (c) minimal real host API/stream, (d) one environment
-object and frontend reaction. Stop at each requested review boundary so the user
+HTTP service and sensor (implemented), (c) minimal real host API/stream and live
+frontend reaction (implemented), (d) one environment object and effects. Stop at each requested review boundary so the user
 can inspect, run, and commit the changes. Do not commit without explicit permission.
 
-Milestones 1–4 form the first deliverable. The brain route initially explains
-missing telemetry rather than fabricating activity. Backend API, test service,
-actual monitoring, and advanced character animation belong to later milestones.
+Milestones 1–4 are complete. Brain overview telemetry is real; detailed inspection,
+environment objects, actual incident detection, and advanced character animation
+belong to later milestones.

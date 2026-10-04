@@ -27,8 +27,8 @@ Brain mode uses an imported biological graph; the default test runtime construct
 The main OS must compile into a **single, portable binary** with zero external dependencies.
 The default test runtime is self-contained: all three WASM sensors are embedded and its graph
 is constructed in memory. Brain mode still uses an external graph and the UI
-has an embedded procedural fly preview and cross-tab laboratory, but no host
-telemetry integration yet (see `FRONTEND.md`). The host
+has an embedded procedural fly and cross-tab laboratory, with live host overview
+telemetry through HTTP/WebSocket (see `FRONTEND.md` and `API.md`). The host
 uses Go modules, including `wazero`; zero dependencies does not mean no Go libraries.
 *   **Strictly NO CGO:** Cross-compilation (Linux/Windows/macOS/ARM) must work out of the box.
 *   **Embedded Assets:** All WASM plugins, 3D UI assets (Three.js), and `.bin` weights MUST be baked into the binary using Go's `//go:embed`.
@@ -40,6 +40,12 @@ lifetime. Its public `Run(ctx, cfg, logger)` does not parse flags or install sig
 handlers. HTTP serving, biological execution, and HTTP-sensor execution are
 separate files within this composition package. Engine math and WASM ABI remain
 in `internal/engine` and `internal/wasm`. Tests live with their owning package.
+
+`internal/telemetry` stores serialized overview state and ordered live events;
+`internal/hostapi` owns HTTP/WebSocket transport. Only the engine owner publishes
+snapshots. Slow clients have bounded queues and never block engine ticks. API
+handlers do not read mutable neural arrays. The small pure-Go WebSocket dependency
+is `github.com/coder/websocket`.
 
 The engine abandons OOP (no Interface graphs) in favor of Data-Oriented Design (DoD). Memory consists of flat `Voltages`, `Thresholds`, and `Weights` arrays to maximize CPU L1/L2 cache hits during the high-frequency matrix multiplications.
 

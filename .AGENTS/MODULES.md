@@ -3,7 +3,8 @@
 Status: the embedded fixed, random, and HTTP sensors, WASI reactor lifecycle,
 input ABI, and fixed-target HTTP probe capability are implemented. General
 multi-channel application mappings, proprietary dynamic loading,
-and effectors are roadmap items. The HTTP host API is not implemented.
+and effectors are roadmap items. The read-only HTTP/WebSocket host overview API
+is implemented; see `API.md` for module/capability descriptions and events.
 
 ## 1. Plugin Isolation and Granularity (The UNIX Way)
 Drosophila.OS uses WebAssembly (WASM) for the HTTP test sensor, the random brain-mode sensor, and a retained fixed-signal regression fixture. The host application (Go) runs them via the `wazero` engine; WASM effectors are planned.

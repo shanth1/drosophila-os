@@ -27,6 +27,7 @@ run: build
 	./bin/drosophila $(ARGS)
 
 test: plugins ui-build
+	npm --prefix ui test
 	CGO_ENABLED=0 go test -mod=readonly ./...
 
 check: test

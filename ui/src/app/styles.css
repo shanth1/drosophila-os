@@ -24,6 +24,14 @@ p { color: #a2b1b3; line-height: 1.7; }
 .status-card p { margin: 0 0 10px; }
 .status-card small { display: block; color: #a2b1b3; letter-spacing: 0; }
 .status-card a { display: block; margin-top: 20px; }
+.status-card { max-width: 300px; }
+.status-dot.offline { background: #d89b69; }
+.telemetry-values { display: grid; grid-template-columns: 1fr auto; gap: 8px 20px; letter-spacing: 0; font-size: 12px; }
+.telemetry-values dt { color: #a2b1b3; }
+.telemetry-values dd { margin: 0; font-variant-numeric: tabular-nums; }
+.observation { margin: 16px 0; padding-top: 12px; border-top: 1px solid #354740; }
+.observation p { margin: 6px 0; letter-spacing: 0; }
+.status-card .connection-error { margin-top: 8px; color: #e7b19a; overflow-wrap: anywhere; }
 .page { max-width: 1000px; padding: 64px 36px; margin: auto; }
 .page > p { max-width: 700px; }
 .panel { background: #172126; border: 1px solid #30413c; border-radius: 14px; padding: 28px; margin: 32px 0; }
