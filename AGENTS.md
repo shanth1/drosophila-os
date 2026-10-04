@@ -1,4 +1,5 @@
 ```xml
+<!-- Frontend work must follow .AGENTS/FRONTEND.md. -->
 <agent_instructions>
     <system_role>
         You are the core AI Architect and Senior Go/WASM Engineer for Drosophila.OS — a zero-dependency, biomimetic monitoring and chaos-engineering framework based on Spiking Neural Networks (SNN).

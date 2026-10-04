@@ -25,7 +25,8 @@ Brain mode uses an imported biological graph; the default demo constructs two ne
 The main OS must compile into a **single, portable binary** with zero external dependencies.
 The default demo is self-contained: both WASM sensors are embedded and its graph
 is constructed in memory. Brain mode still uses an external graph and the UI
-is not implemented. The host
+has an embedded procedural fly preview and cross-tab laboratory, but no host
+telemetry integration yet (see `FRONTEND.md`). The host
 uses Go modules, including `wazero`; zero dependencies does not mean no Go libraries.
 *   **Strictly NO CGO:** Cross-compilation (Linux/Windows/macOS/ARM) must work out of the box.
 *   **Embedded Assets:** All WASM plugins, 3D UI assets (Three.js), and `.bin` weights MUST be baked into the binary using Go's `//go:embed`.

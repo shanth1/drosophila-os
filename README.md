@@ -8,9 +8,43 @@ tool. The default application demonstrates:
 fixed WASM signal -> host ABI -> two-neuron SNN -> output event
 ```
 
+## Frontend Preview
+
+The first frontend milestone uses React, TypeScript, Vite, and direct Three.js.
+It provides one original procedural fly, orbit/zoom controls, basic behavior
+previews, and a same-origin cross-tab presentation laboratory. No backend
+telemetry or monitoring behavior is connected yet.
+
+Frontend development requires Node.js 22.12+ (or a compatible modern release)
+and npm. Start the independent development server:
+
+```sh
+make ui-dev
+```
+
+Open the URL printed by Vite. Open `/lab` in a neighboring tab to select idle,
+working, alarmed, coffee, or break and adjust activity. Controls use
+BroadcastChannel and affect presentation only. `/brain` describes planned real
+telemetry; it does not fabricate neural activity.
+
+Build and serve the embedded UI:
+
+```sh
+make ui-run
+# http://127.0.0.1:8080
+make ui-run ARGS="-listen 127.0.0.1:8090"
+```
+
+The resulting binary serves the UI independently of the temporary console demo
+and runs until interrupted. All assets are embedded; Node and a CDN are not
+needed at runtime. `make build` and `make check` now build frontend assets too.
+Before invoking Go builds/tests directly on a fresh checkout, run
+`make plugins ui-build`. Architectural decisions and remaining milestones are
+documented in `.AGENTS/FRONTEND.md`.
+
 ## Quick Start
 
-Requirements: Go 1.25.5 or newer and Make. No CGO, TinyGo, dataset, or credentials
+Requirements: Go 1.25.5 or newer, Make, Node.js, and npm for the combined build. No CGO, TinyGo, dataset, or credentials
 are needed for the default demo. Run commands from the repository root:
 
 ```sh
@@ -115,7 +149,7 @@ make clean
 sensors into `plugins/compiled/`, then embeds their bytes in the host binary
 at `bin/drosophila`. Generated paths are ignored by Git. `make run` builds
 and executes this binary, forwarding `ARGS` as command-line arguments.
-`make clean` removes only the host binary and two sensor files, not source, data,
+`make clean` removes only the host binary and two sensor files, not source, frontend assets, data,
 or Go's build cache. WASM stays under `plugins/` because `go:embed` paths cannot
 use `../`.
 
@@ -133,9 +167,10 @@ On a fresh checkout, run `make plugins` before building the host or running
 
 ### Configuration And Logs
 
-Only CLI flags configure the host: `-mode` defaults to `demo` (or select `brain`),
+Only CLI flags configure the host: `-mode` defaults to `demo` (or select `brain` or `ui`),
 `-brain` defaults to `data/male_cns.bin` and is used only in brain mode,
-and `-ticks` defaults to `3` (`0` runs until interrupted). For the previous
+and `-ticks` defaults to `3` (`0` runs until interrupted). UI mode uses `-listen`
+(default `127.0.0.1:8080`) and runs until interrupted, independent of tick limits. For the previous
 300-tick large-graph run, specify `-mode brain -ticks 300`. No YAML file or
 environment overrides are used. `cmd/drosophila/config.go` parses and validates
 flags using a local `FlagSet`; `run(ctx, cfg, logger)` executes the application
@@ -209,7 +244,10 @@ embedded fixed/random sensors, WASM input ABI, console activity, and graceful
 shutdown. The default demo produces deterministic output events from a small
 network; the biological graph remains an experimental mode.
 
-Roadmap only: HTTP host API, dashboard, WebSocket, mock server, effectors,
+Implemented frontend preview: embedded HTTP static serving, procedural fly,
+dashboard, and cross-tab visual laboratory. This is not a host telemetry API.
+
+Roadmap only: HTTP host API, WebSocket, test external server, effectors,
 proprietary plugin loading from disk, learning, database, and snapshots.
 Empty/package-only placeholders for these features and the empty YAML file
 have been removed; no implementation was removed. Documents under `.AGENTS/`
