@@ -9,6 +9,7 @@ import { createFly } from '../../entities/fly/model';
 import { createPlants } from '../../entities/plants/model';
 import { createDecorativeLighting } from '../../entities/lighting/model';
 import { createBackdrop } from '../../entities/room/model';
+import { createRug } from '../../entities/room/rug';
 import { createAtmosphericHaze } from '../../entities/atmosphere/model';
 import type { FlyState } from '../../entities/fly/state';
 import { alarmSirenStrength } from '../../features/presentation-rules/alarm';
@@ -73,6 +74,7 @@ export function WorldScene({ state }: { state: FlyState }) {
     scene.add(floor, new THREE.GridHelper(20, 40, '#35524c', '#233831'));
     scene.add(createPlants());
     scene.add(createBackdrop());
+    scene.add(createRug());
     scene.add(createDecorativeLighting());
     scene.add(createAtmosphericHaze());
     const soundChannel = typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel('drosophila.presentation-sound.v1') : null;
@@ -143,6 +145,13 @@ export function WorldScene({ state }: { state: FlyState }) {
         }
       });
       geometries.forEach(geometry => geometry.dispose());
+      const textures = new Set<THREE.Texture>();
+      materials.forEach(material => {
+        if (material instanceof THREE.MeshStandardMaterial && material.bumpMap) {
+          textures.add(material.bumpMap);
+        }
+      });
+      textures.forEach(texture => texture.dispose());
       materials.forEach(material => material.dispose());
       renderer.dispose();
       renderer.domElement.remove();
