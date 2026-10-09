@@ -9,7 +9,7 @@ export function createPlants() {
   const stem = new THREE.MeshStandardMaterial({ color: '#587447', roughness: 0.8 });
   const vein = new THREE.MeshStandardMaterial({ color: '#8caa63', roughness: 0.8 });
   const greens = ['#385f3c', '#507944', '#64894e'].map(color =>
-    new THREE.MeshStandardMaterial({ color, roughness: 0.68, side: THREE.DoubleSide }),
+    new THREE.MeshStandardMaterial({ color, roughness: 0.68, side: THREE.DoubleSide, shadowSide: THREE.DoubleSide }),
   );
 
   function mesh(parent: THREE.Object3D, geometry: THREE.BufferGeometry, material: THREE.Material) {

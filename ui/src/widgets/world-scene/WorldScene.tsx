@@ -1,8 +1,15 @@
 import { useEffect, useRef } from 'react';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
+import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
+import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
 import { createFly } from '../../entities/fly/model';
 import { createPlants } from '../../entities/plants/model';
+import { createDecorativeLighting } from '../../entities/lighting/model';
+import { createBackdrop } from '../../entities/room/model';
+import { createAtmosphericHaze } from '../../entities/atmosphere/model';
 import type { FlyState } from '../../entities/fly/state';
 import { alarmSirenStrength } from '../../features/presentation-rules/alarm';
 
@@ -17,10 +24,12 @@ export function WorldScene({ state }: { state: FlyState }) {
     catch { element.textContent = 'WebGL is unavailable. Try a browser with hardware acceleration.'; return; }
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
     element.appendChild(renderer.domElement);
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color('#10171c');
-    scene.fog = new THREE.Fog('#10171c', 12, 28);
+    scene.background = new THREE.Color('#48443e');
+    scene.fog = new THREE.Fog('#48443e', 18, 42);
     const camera = new THREE.PerspectiveCamera(40, 1, 0.1, 60);
     camera.position.set(5, 4, -7);
     const controls = new OrbitControls(camera, renderer.domElement);
@@ -29,12 +38,12 @@ export function WorldScene({ state }: { state: FlyState }) {
     controls.minDistance = 3;
     controls.maxDistance = 15;
     controls.maxPolarAngle = Math.PI / 2 - 0.03;
-    scene.add(new THREE.HemisphereLight('#d8f5ec', '#343326', 2.4));
-    const key = new THREE.DirectionalLight('#ffe9c6', 4);
+    scene.add(new THREE.HemisphereLight('#fff0da', '#645b4b', 2));
+    const key = new THREE.DirectionalLight('#ffe9c9', 3);
     key.position.set(3, 7, -4);
     key.castShadow = true;
     scene.add(key);
-    const accent = new THREE.PointLight('#6cd9b7', 16, 12);
+    const accent = new THREE.PointLight('#ffc078', 8, 12);
     accent.position.set(-3, 3, 2);
     scene.add(accent);
     const siren = new THREE.Group();
@@ -50,29 +59,39 @@ export function WorldScene({ state }: { state: FlyState }) {
     alarmRing.rotation.x = -Math.PI / 2;
     alarmRing.position.y = 0.005;
     scene.add(alarmRing);
-    const normalBackground = new THREE.Color('#10171c');
+    const normalBackground = new THREE.Color('#48443e');
     const warningColor = new THREE.Color('#ffcd38');
     const dangerColor = new THREE.Color('#ff3026');
     const alarmColor = new THREE.Color();
     const warningBackground = new THREE.Color('#30291a');
     const dangerBackground = new THREE.Color('#36151d');
     const alarmBackground = new THREE.Color();
-    const floor = new THREE.Mesh(new THREE.CircleGeometry(12, 64), new THREE.MeshStandardMaterial({ color: '#172329', roughness: 0.9 }));
+    const floor = new THREE.Mesh(new THREE.CircleGeometry(14, 64), new THREE.MeshStandardMaterial({ color: '#343a36', roughness: 0.9 }));
     floor.rotation.x = -Math.PI / 2;
     floor.position.y = -0.02;
     floor.receiveShadow = true;
     scene.add(floor, new THREE.GridHelper(20, 40, '#35524c', '#233831'));
     scene.add(createPlants());
+    scene.add(createBackdrop());
+    scene.add(createDecorativeLighting());
+    scene.add(createAtmosphericHaze());
     const soundChannel = typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel('drosophila.presentation-sound.v1') : null;
     const fly = createFly(
       () => soundChannel?.postMessage({ type: 'coffee.sip', timestamp: Date.now() }),
       () => soundChannel?.postMessage({ type: 'working.keypress', timestamp: Date.now() }),
     );
     scene.add(fly.root);
+    const composer = new EffectComposer(renderer);
+    const bloom = new UnrealBloomPass(new THREE.Vector2(1, 1), 0.12, 0.55, 1.2);
+    const output = new OutputPass();
+    composer.addPass(new RenderPass(scene, camera));
+    composer.addPass(bloom);
+    composer.addPass(output);
     const observer = new ResizeObserver(() => {
       const { width, height } = element.getBoundingClientRect();
       if (!width || !height) return;
       renderer.setSize(width, height);
+      composer.setSize(width, height);
       camera.aspect = width / height;
       camera.updateProjectionMatrix();
     });
@@ -87,8 +106,8 @@ export function WorldScene({ state }: { state: FlyState }) {
       alarmColor.copy(warningColor).lerp(dangerColor, Math.min(1, activity / 0.8));
       alarmBackground.copy(warningBackground).lerp(dangerBackground, Math.min(1, activity / 0.8));
       if (alarmed) accent.color.copy(alarmColor);
-      else accent.color.set('#6cd9b7');
-      accent.intensity = alarmed ? 20 + activity * 12 + pulse * (6 + activity * 16) : 16;
+      else accent.color.set('#ffc078');
+      accent.intensity = alarmed ? 20 + activity * 12 + pulse * (6 + activity * 16) : 8;
       siren.rotation.y = time * 4;
       siren.children.forEach(object => {
         if (object instanceof THREE.SpotLight) {
@@ -102,16 +121,22 @@ export function WorldScene({ state }: { state: FlyState }) {
       (scene.background as THREE.Color).copy(normalBackground).lerp(alarmBackground, alarmed ? 0.45 + pulse * 0.25 : 0);
       (scene.fog as THREE.Fog).color.copy(scene.background as THREE.Color);
       controls.update();
-      renderer.render(scene, camera);
+      composer.render();
     });
     return () => {
       observer.disconnect();
       soundChannel?.close();
       renderer.setAnimationLoop(null);
       controls.dispose();
+      bloom.dispose();
+      output.dispose();
+      composer.dispose();
       const geometries = new Set<THREE.BufferGeometry>();
       const materials = new Set<THREE.Material>();
       scene.traverse((object) => {
+        if (object instanceof THREE.DirectionalLight || object instanceof THREE.SpotLight || object instanceof THREE.PointLight) {
+          object.shadow.dispose();
+        }
         if (object instanceof THREE.Mesh || object instanceof THREE.LineSegments) {
           geometries.add(object.geometry);
           (Array.isArray(object.material) ? object.material : [object.material]).forEach(material => materials.add(material));
