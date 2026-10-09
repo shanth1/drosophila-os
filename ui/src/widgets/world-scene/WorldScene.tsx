@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { createFly } from '../../entities/fly/model';
+import { createPlants } from '../../entities/plants/model';
 import type { FlyState } from '../../entities/fly/state';
 import { alarmSirenStrength } from '../../features/presentation-rules/alarm';
 
@@ -61,6 +62,7 @@ export function WorldScene({ state }: { state: FlyState }) {
     floor.position.y = -0.02;
     floor.receiveShadow = true;
     scene.add(floor, new THREE.GridHelper(20, 40, '#35524c', '#233831'));
+    scene.add(createPlants());
     const soundChannel = typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel('drosophila.presentation-sound.v1') : null;
     const fly = createFly(
       () => soundChannel?.postMessage({ type: 'coffee.sip', timestamp: Date.now() }),
