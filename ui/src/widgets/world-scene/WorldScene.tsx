@@ -9,6 +9,7 @@ import { createFly } from '../../entities/fly/model';
 import { createPlants } from '../../entities/plants/model';
 import { createDecorativeLighting } from '../../entities/lighting/model';
 import { createBackdrop } from '../../entities/room/model';
+import { createCityBackdrop } from '../../entities/city-backdrop/model';
 import { createRug } from '../../entities/room/rug';
 import { createAtmosphericHaze } from '../../entities/atmosphere/model';
 import type { FlyState } from '../../entities/fly/state';
@@ -37,7 +38,8 @@ export function WorldScene({ state }: { state: FlyState }) {
     controls.target.set(0, 0.8, 0);
     controls.enableDamping = true;
     controls.minDistance = 3;
-    controls.maxDistance = 15;
+    // Keep the orbit camera inside the inward-facing room wall.
+    controls.maxDistance = 12;
     controls.maxPolarAngle = Math.PI / 2 - 0.03;
     scene.add(new THREE.HemisphereLight('#fff0da', '#645b4b', 2));
     const key = new THREE.DirectionalLight('#ffe9c9', 3);
@@ -74,6 +76,8 @@ export function WorldScene({ state }: { state: FlyState }) {
     scene.add(floor, new THREE.GridHelper(20, 40, '#35524c', '#233831'));
     scene.add(createPlants());
     scene.add(createBackdrop());
+    const cityBackdrop = createCityBackdrop();
+    scene.add(cityBackdrop.root);
     scene.add(createRug());
     scene.add(createDecorativeLighting());
     scene.add(createAtmosphericHaze());
@@ -136,6 +140,7 @@ export function WorldScene({ state }: { state: FlyState }) {
       const geometries = new Set<THREE.BufferGeometry>();
       const materials = new Set<THREE.Material>();
       scene.traverse((object) => {
+        if (object instanceof THREE.InstancedMesh) object.dispose();
         if (object instanceof THREE.DirectionalLight || object instanceof THREE.SpotLight || object instanceof THREE.PointLight) {
           object.shadow.dispose();
         }

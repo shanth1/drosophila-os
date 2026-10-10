@@ -140,7 +140,7 @@ export function createDecorativeLighting() {
     const head = new THREE.Group();
     head.position.y = position.y;
     fixture.add(head);
-    // Aim upward through the foliage so its silhouette lands on the rear wall.
+    // Aim outward through the foliage so silhouettes land beside the windows.
     head.lookAt(target);
     // The emitter sits inside the housing; exclude it from its own shadow map.
     const housing = mesh(head, new THREE.CylinderGeometry(0.105, 0.12, 0.24, 20), metal, false);
@@ -173,7 +173,7 @@ export function createDecorativeLighting() {
 
   floorCylinder(-6.1, 5.7, 0.95, 0.3);
   arcLamp();
-  gardenSpot(new THREE.Vector3(-7.3, 0.24, 2.7), new THREE.Vector3(-7.8, 2, 4.5), 260);
-  gardenSpot(new THREE.Vector3(5.3, 0.24, 5.6), new THREE.Vector3(4.8, 1.9, 7.4), 260);
+  gardenSpot(new THREE.Vector3(-6.3, 0.24, 2.7), new THREE.Vector3(-7.8, 2, 4.5), 260);
+  gardenSpot(new THREE.Vector3(3.5, 0.24, 5.6), new THREE.Vector3(5.1, 1.9, 7.4), 260);
   return root;
 }
