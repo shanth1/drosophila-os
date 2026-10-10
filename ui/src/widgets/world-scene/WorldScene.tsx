@@ -16,6 +16,7 @@ import { createAtmosphericHaze } from '../../entities/atmosphere/model';
 import { createServerRacks } from '../../entities/server-racks/model';
 import type { FlyState } from '../../entities/fly/state';
 import { alarmSirenStrength } from '../../features/presentation-rules/alarm';
+import { createOcclusionFade } from './occlusion';
 
 export function WorldScene({ state }: { state: FlyState }) {
   const container = useRef<HTMLDivElement>(null);
@@ -76,9 +77,11 @@ export function WorldScene({ state }: { state: FlyState }) {
     floor.position.y = -0.02;
     floor.receiveShadow = true;
     scene.add(floor, new THREE.GridHelper(20, 40, '#35524c', '#233831'));
-    scene.add(createPlants());
+    const plants = createPlants();
+    scene.add(plants);
     scene.add(createBackdrop());
-    scene.add(createSofa());
+    const sofa = createSofa();
+    scene.add(sofa);
     const cityBackdrop = createCityBackdrop();
     scene.add(cityBackdrop.root);
     scene.add(createRug());
@@ -86,6 +89,7 @@ export function WorldScene({ state }: { state: FlyState }) {
     scene.add(createAtmosphericHaze());
     const serverRacks = createServerRacks();
     scene.add(serverRacks.root);
+    const occlusion = createOcclusionFade([...plants.children, sofa, ...serverRacks.root.children]);
     const soundChannel = typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel('drosophila.presentation-sound.v1') : null;
     const fly = createFly(
       () => soundChannel?.postMessage({ type: 'coffee.sip', timestamp: Date.now() }),
@@ -133,6 +137,7 @@ export function WorldScene({ state }: { state: FlyState }) {
       (scene.background as THREE.Color).copy(normalBackground).lerp(alarmBackground, alarmed ? 0.45 + pulse * 0.25 : 0);
       (scene.fog as THREE.Fog).color.copy(scene.background as THREE.Color);
       controls.update();
+      occlusion.update(camera, controls.target, time);
       composer.render();
     });
     return () => {
@@ -140,6 +145,7 @@ export function WorldScene({ state }: { state: FlyState }) {
       soundChannel?.close();
       renderer.setAnimationLoop(null);
       controls.dispose();
+      occlusion.dispose();
       bloom.dispose();
       output.dispose();
       composer.dispose();
