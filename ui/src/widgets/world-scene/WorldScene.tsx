@@ -10,6 +10,7 @@ import { createPlants } from '../../entities/plants/model';
 import { createDecorativeLighting } from '../../entities/lighting/model';
 import { createBackdrop } from '../../entities/room/model';
 import { createCityBackdrop } from '../../entities/city-backdrop/model';
+import { createSofa } from '../../entities/sofa/model';
 import { createRug } from '../../entities/room/rug';
 import { createAtmosphericHaze } from '../../entities/atmosphere/model';
 import type { FlyState } from '../../entities/fly/state';
@@ -76,6 +77,7 @@ export function WorldScene({ state }: { state: FlyState }) {
     scene.add(floor, new THREE.GridHelper(20, 40, '#35524c', '#233831'));
     scene.add(createPlants());
     scene.add(createBackdrop());
+    scene.add(createSofa());
     const cityBackdrop = createCityBackdrop();
     scene.add(cityBackdrop.root);
     scene.add(createRug());
