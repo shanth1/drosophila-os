@@ -172,8 +172,12 @@ export function createDecorativeLighting() {
   }
 
   floorCylinder(-6.1, 5.7, 0.95, 0.3);
+  floorCylinder(-9.5, -5.3, 0.7, 0.24);
+  floorCylinder(9.5, -5.3, 0.7, 0.24);
   arcLamp();
   gardenSpot(new THREE.Vector3(-6.3, 0.24, 2.7), new THREE.Vector3(-7.8, 2, 4.5), 260);
   gardenSpot(new THREE.Vector3(3.5, 0.24, 5.6), new THREE.Vector3(5.1, 1.9, 7.4), 260);
+  gardenSpot(new THREE.Vector3(-7.3, 0.24, -5.1), new THREE.Vector3(-8.6, 1.6, -6.2), 220);
+  gardenSpot(new THREE.Vector3(7.3, 0.24, -5.1), new THREE.Vector3(8.6, 1.2, -6.2), 200);
   return root;
 }

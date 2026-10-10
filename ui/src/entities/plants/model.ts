@@ -168,5 +168,11 @@ export function createPlants() {
   spreadingPalm.position.set(4.8, 0, 7.4);
   const broadMonstera = monstera();
   broadMonstera.position.set(-3.8, 0, 8.6);
+  const consolePalm = palm(341, 8, 2.5, 1.4, 1);
+  consolePalm.position.set(-8.6, 0, -6.2);
+  const consoleMonstera = monstera();
+  consoleMonstera.position.set(8.6, 0, -6.2);
+  consoleMonstera.rotation.y = 0.7;
+  consoleMonstera.scale.setScalar(0.85);
   return root;
 }
