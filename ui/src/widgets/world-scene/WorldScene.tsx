@@ -13,6 +13,7 @@ import { createCityBackdrop } from '../../entities/city-backdrop/model';
 import { createSofa } from '../../entities/sofa/model';
 import { createRug } from '../../entities/room/rug';
 import { createAtmosphericHaze } from '../../entities/atmosphere/model';
+import { createServerRacks } from '../../entities/server-racks/model';
 import type { FlyState } from '../../entities/fly/state';
 import { alarmSirenStrength } from '../../features/presentation-rules/alarm';
 
@@ -83,6 +84,8 @@ export function WorldScene({ state }: { state: FlyState }) {
     scene.add(createRug());
     scene.add(createDecorativeLighting());
     scene.add(createAtmosphericHaze());
+    const serverRacks = createServerRacks();
+    scene.add(serverRacks.root);
     const soundChannel = typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel('drosophila.presentation-sound.v1') : null;
     const fly = createFly(
       () => soundChannel?.postMessage({ type: 'coffee.sip', timestamp: Date.now() }),
@@ -107,6 +110,7 @@ export function WorldScene({ state }: { state: FlyState }) {
     renderer.setAnimationLoop((milliseconds) => {
       fly.update(milliseconds / 1000, current.current);
       const time = milliseconds / 1000;
+      serverRacks.update(time);
       const alarmed = current.current.behavior === 'alarmed';
       const activity = current.current.activity;
       const sirenStrength = alarmed ? alarmSirenStrength(activity) : 0;
