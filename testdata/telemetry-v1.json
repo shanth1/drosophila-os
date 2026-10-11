@@ -1,0 +1,30 @@
+{
+  "apiVersion": 1,
+  "runId": "fixture-run",
+  "sequence": 7,
+  "timestamp": "2026-10-04T12:00:00Z",
+  "type": "snapshot",
+  "payload": {
+    "mode": "test",
+    "status": "running",
+    "brain": {
+      "neurons": 3,
+      "synapses": 2,
+      "tick": 5,
+      "spikes": 0,
+      "totalSpikes": 0,
+      "outputEvents": 0,
+      "lastOutputAt": null
+    },
+    "modules": [{ "id": "sensor_http", "kind": "sensor", "status": "running", "capabilities": ["http.response.v1", "signal.normalized.v1"] }],
+    "entities": [{ "id": "test-http", "kind": "service", "label": "Test HTTP service" }],
+    "observations": [{
+      "source": "sensor_http",
+      "subject": "test-http",
+      "name": "http.response",
+      "schemaVersion": 1,
+      "observedAt": "2026-10-04T12:00:00Z",
+      "data": { "statusCode": 200, "elapsedMs": 2 }
+    }]
+  }
+}

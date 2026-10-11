@@ -1,16 +1,48 @@
 # Frontend Architecture and Roadmap
 
+## MVP readiness and new sessions
+
+The minimal end-to-end development MVP is complete: a controlled HTTP system,
+real host/WASM/SNN processing, versioned telemetry, and live fly reactions.
+Appearance, emotions, props, environment objects, and artistic mappings can now
+be developed as an independent frontend workstream. Begin a fresh visual session
+with `VISUAL_DEVELOPMENT.md` for setup, source locations, extension recipes,
+current limitations, and verification. Operational incident detection/effectors
+remain future backend work; monitored-resource bindings and effects are future
+visual work. Decorative scene infrastructure is already implemented.
+
 ## Current implementation
 
 The initial shell, procedural fly, orbit controls, three routes, basic cross-tab
 behavior previews, and embedded UI server are implemented. Run `make ui-dev` for
-Vite or `make ui-run` for the binary. The temporary standalone `-mode ui` does
-not run the SNN. The `/brain` page is an explicit placeholder.
+Vite or `make run` for the binary (`make ui-run` is an alias). HTTP/UI now starts
+alongside the backend in every mode. The default `test` backend continuously
+samples a controlled external HTTP service through an embedded WASM sensor into
+a three-neuron SNN (latency input, failure input, output); `brain` retains the
+experimental graph/random sensor. There is no `demo` or standalone `ui` mode.
+`-ticks` defaults to zero (unlimited); explicit finite runs stop all components.
+Test mode serves `/health` and `/control` on `-test-listen` (127.0.0.1:8081).
+Failure of any component cancels and joins the others. The dashboard now receives
+real overview state and output events through HTTP/WebSocket. `/brain` shows real
+aggregate counters and module descriptions; detailed inspection is still pending.
+The versioned contract and recovery policy are documented in `API.md`.
 
-The current laboratory controls behavior/activity directly. Event injection,
-priority arbitration, full coffee/break sequences, props beyond a cup, and live
-telemetry adaptation are still pending. The `live` label currently means the
-default visual preview, not an active host subscription. BroadcastChannel state
+Go runtime composition lives in `internal/app`, not `cmd/drosophila`. CLI parsing
+and process signals stay in `cmd/`; future HTTP/API composition belongs in the
+application layer, with reusable transport and domain logic in dedicated internal
+packages as needed. Keep this boundary when implementing the remaining stages.
+
+The current laboratory controls six behaviors (`idle`, `working`, `analyzing`,
+`alarmed`, `coffee`, `break`) and activity directly, plus opt-in sound and volume.
+Coffee has a steaming mug and occasional sips; working has irregular keyboard
+typing; analyzing uses a magnifier and decorative chart; break has cigarette
+draws/exhalation with pooled smoke. Siren, sip, and keypress sounds play from the
+lab tab; sip/keypress signals come from scene animation. A procedural room, city,
+plants, sofa, rug, lighting/haze, racks, and console surround the fly. They are
+decorative, not mapped monitored resources. Event injection, general priority
+arbitration, walking/full action sequences, and resource effects remain pending.
+Live mode uses host telemetry; manual lab mode overrides graphics
+without stopping the data subscription. BroadcastChannel state
 is transient and same-origin; do not assume durable synchronization across page
 reloads or independent browser profiles.
 
@@ -41,9 +73,9 @@ Use lightweight Feature-Sliced Design (FSD):
 
 - `app`: routing, global styles, composition.
 - `pages`: dashboard (`/`), brain inspector (`/brain`), visual laboratory (`/lab`).
-- `widgets`: world scene, debug panel, future brain monitor.
-- `features`: fly behavior, presentation rules, debug controls.
-- `entities`: fly, future world objects and neural network models.
+- `widgets`: world scene and occlusion handling; dedicated debug/brain-monitor widgets remain future extractions.
+- `features`: presentation rules, debug controls, host connection, presentation sound; extract a fly-behavior controller only when needed.
+- `entities`: fly and procedural world objects; detailed neural network models remain future work.
 - `shared`: transport, protocol validation, utilities, UI primitives.
 
 Dependencies point downward; sibling entities do not import one another.
@@ -56,19 +88,27 @@ registered with ordinary TypeScript factories at build time.
 `host message -> validation/adapter -> application event -> presentation rules
 -> fly controller and world effects`.
 
-The fly exposes explicit controls for activity, attention, gestures, and
-behavior sequences. Its behavior controller arbitrates priorities and prevents
-conflicting animations. Urgent behavior can interrupt idle sequences. Repeated
-events need coalescing/cooldowns rather than one animation per neural spike.
+Currently `createFly(onCoffeeSip?, onKeyPress?)` returns a root and an
+`update(timeSeconds, state)` function accepting mode, behavior, and activity.
+Behavior-specific accumulated clocks and fixed-length front-limb posing are
+implemented; a general transition/priority controller is not. As behaviors grow,
+add explicit attention, gesture, and sequence controls
+through a focused controller that arbitrates priorities and prevents conflicting
+animations. Urgent behavior should interrupt idle sequences. General sequencing
+and arbitration are not implemented yet. Repeated events need coalescing/cooldowns
+rather than one animation per neural spike; the current alert uses a recent-event window.
 Backend observations and brain reactions remain distinguishable: an unhealthy
 resource must not appear healthy merely because the brain has not reacted.
 Disconnection is distinct from health; silence does not imply normal operation.
 
-Start with built-in behaviors such as idle, working, alarmed, coffee, and break.
+Use the built-in idle, working, analyzing, alarmed, coffee, and break previews.
 Configuration handles simple mappings, colors, and thresholds. Use TypeScript
 for complex sequences rather than inventing a general-purpose JSON language.
 
-## API direction (not an implemented contract)
+## API direction and implemented overview contract
+
+Read `API.md` for the actual v1 overview API. The general principles below guide
+future capabilities; not every listed concept is implemented.
 
 Keep transport independent of Three.js and artistic concepts. Useful concepts
 are entities, observations, events, actions/results, module descriptions, and
@@ -81,9 +121,9 @@ capabilities. Specialized frontend adapters explicitly support known semantics;
 unknown modules retain a generic representation. Arbitrary JSON cannot provide
 automatic semantic compatibility.
 
-Plan HTTP for snapshots/catalogs/commands and WebSocket for streaming. Select a
-small WebSocket dependency when actually implementing transport; do not implement
-a custom protocol prematurely. Snapshots and updates need coordinated sequence
+HTTP snapshots and WebSocket streaming are implemented with the pure-Go
+`github.com/coder/websocket` library. Catalog/command expansion remains future
+work. Do not implement a custom protocol. Snapshots and updates need coordinated sequence
 numbers, reconnect recovery, and runtime input validation. Replaceable state
 updates and significant events need different delivery policies. Slow clients
 must never block neural ticks. Capture coherent snapshots in the engine owner,
@@ -101,7 +141,8 @@ real SNN against a controllable test HTTP service. This service simulates the
 observed world (latency, failures, recovery), not the frontend API. Avoid a
 parallel mock backend that duplicates the production API.
 
-`/lab` is a graphics tool: directly invoke gestures or inject presentation events.
+`/lab` currently selects behavior/activity directly. Presentation event injection
+and arbitrary world-effect controls are future extensions of this graphics tool.
 Use BroadcastChannel to control a dashboard in another same-origin tab, without
 backend involvement. Provide explicit live/manual modes so real input cannot
 overwrite debug state. Label manual mode visibly. Test scenarios eventually use
@@ -123,15 +164,18 @@ clearly identifies its layout. The dashboard and brain page observe the same hos
 
 ## Build and delivery
 
-Vite serves development with hot updates; later proxy `/api` to Go. Production
+Vite serves development with hot updates and proxies `/api` including WebSocket
+to Go (configure `DROSOPHILA_API_URL` for a different address). Production
 assets, including Three.js and models, are local and embedded with `go:embed`.
 Node is a build/development dependency only; the delivered Go binary needs no
 Node process or CDN. Build frontend assets before compiling the embedding package.
 Go serves the SPA routes and embedded resources through `net/http`.
 
-The current three-tick CLI demo is temporary and must not shape frontend lifetime.
-Use an explicit long-running UI server mode initially. Removing the demo and
-integrating server/engine lifecycle are separate backend changes.
+HTTP/UI is an always-on part of application lifetime, not a backend mode.
+The three-tick demo has been replaced by continuous HTTP-sensor test execution.
+The host performs fixed-target requests; WASM normalizes distinct latency and
+failure receptors through an explicit probe ABI. Sensor and engine clocks are
+independent. `brain` is still experimental, not a production environment mode.
 
 ## Implementation milestones
 
@@ -144,6 +188,13 @@ integrating server/engine lifecycle are separate backend changes.
 6. Real brain telemetry and inspection, starting with aggregates and selections.
 7. Additional props, environment objects, behavior sequences, effects and sound.
 
-Milestones 1–4 form the first deliverable. The brain route initially explains
-missing telemetry rather than fabricating activity. Backend API, test service,
-actual monitoring, and advanced character animation belong to later milestones.
+Milestone 5 has implemented unified HTTP/backend lifetime, the controlled HTTP
+service/sensor, the real host API/stream, and live fly reactions. Decorative world
+objects are present, but a scene object bound to an observed entity and its
+resource-state effects are still pending. Stop at each requested review boundary so the user
+can inspect, run, and commit the changes. Do not commit without explicit permission.
+
+Milestones 1–4 are complete. Milestone 6 has real brain aggregates but no detailed
+inspection. Milestone 7 has procedural environment objects, behavior-specific
+props/animation, alarm effects, and sound; general sequencing and monitored-world
+effects remain future work. Actual incident detection is still a backend goal.

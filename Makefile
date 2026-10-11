@@ -11,13 +11,13 @@ ui-dev: ui-install
 ui-build: ui-install
 	npm --prefix ui run build
 
-ui-run: build
-	./bin/drosophila -mode ui $(ARGS)
+ui-run: run
 
 plugins:
 	mkdir -p plugins/compiled
 	GOOS=wasip1 GOARCH=wasm CGO_ENABLED=0 go build -mod=readonly -buildmode=c-shared -o plugins/compiled/sensor_random.wasm ./plugins/src/sensor_random
 	GOOS=wasip1 GOARCH=wasm CGO_ENABLED=0 go build -mod=readonly -buildmode=c-shared -o plugins/compiled/sensor_fixed.wasm ./plugins/src/sensor_fixed
+	GOOS=wasip1 GOARCH=wasm CGO_ENABLED=0 go build -mod=readonly -buildmode=c-shared -o plugins/compiled/sensor_http.wasm ./plugins/src/sensor_http
 
 build: plugins ui-build
 	mkdir -p bin
@@ -27,13 +27,14 @@ run: build
 	./bin/drosophila $(ARGS)
 
 test: plugins ui-build
+	npm --prefix ui test
 	CGO_ENABLED=0 go test -mod=readonly ./...
 
 check: test
 	CGO_ENABLED=0 go vet -mod=readonly ./...
 
 clean:
-	rm -f bin/drosophila plugins/compiled/sensor_random.wasm plugins/compiled/sensor_fixed.wasm
+	rm -f bin/drosophila plugins/compiled/sensor_random.wasm plugins/compiled/sensor_fixed.wasm plugins/compiled/sensor_http.wasm
 
 wasm-lab:
 	CGO_ENABLED=0 go test -mod=readonly -v -count=1 ./examples/wasm
