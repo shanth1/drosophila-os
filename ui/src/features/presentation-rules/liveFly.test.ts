@@ -26,7 +26,9 @@ test('fresh output gestures expire and disconnection clears live activity', () =
 });
 
 test('manual behavior survives live updates and connection loss', () => {
-  const manual = { mode: 'manual' as const, behavior: 'coffee' as const, activity: 0.3 };
-  assert.deepEqual(resolveFlyState(manual, { ...connected, lastOutputReceivedAt: 1000 }, 1100), manual);
-  assert.deepEqual(resolveFlyState(manual, initialHostFeed, 1100), manual);
+  for (const behavior of ['coffee', 'analyzing'] as const) {
+    const manual = { mode: 'manual' as const, behavior, activity: 0.3 };
+    assert.deepEqual(resolveFlyState(manual, { ...connected, lastOutputReceivedAt: 1000 }, 1100), manual);
+    assert.deepEqual(resolveFlyState(manual, initialHostFeed, 1100), manual);
+  }
 });
