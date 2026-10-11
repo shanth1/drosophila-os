@@ -51,6 +51,10 @@ statuses/transport failures produce failure one and clear stale latency input.
 This clearing is not a successful measurement of zero latency. A three-neuron
 test graph routes both inputs to output 2, with leak 0.2 and threshold 1.
 The fixed graph and normalization are illustrative, not calibrated anomaly logic.
+`internal/httpmonitor` owns measurement, `internal/wasm` owns capability/ABI
+enforcement, and `internal/app` composes them. Sensor code remains under
+`plugins/src/`; rebuild with `make plugins` after changes because direct host
+builds otherwise embed previously generated guest bytes.
 
 ### 3.3. Output ABI (Effectors/Actions)
 Draft only; not implemented. The empty output ABI placeholder has been removed.

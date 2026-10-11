@@ -8,7 +8,8 @@ Appearance, emotions, props, environment objects, and artistic mappings can now
 be developed as an independent frontend workstream. Begin a fresh visual session
 with `VISUAL_DEVELOPMENT.md` for setup, source locations, extension recipes,
 current limitations, and verification. Operational incident detection/effectors
-remain future backend work; scene infrastructure objects are future visual work.
+remain future backend work; monitored-resource bindings and effects are future
+visual work. Decorative scene infrastructure is already implemented.
 
 ## Current implementation
 
@@ -31,9 +32,16 @@ and process signals stay in `cmd/`; future HTTP/API composition belongs in the
 application layer, with reusable transport and domain logic in dedicated internal
 packages as needed. Keep this boundary when implementing the remaining stages.
 
-The current laboratory controls behavior/activity directly. Event injection,
-priority arbitration, full coffee/break sequences, and props beyond a cup are
-still pending. Live mode uses host telemetry; manual lab mode overrides graphics
+The current laboratory controls six behaviors (`idle`, `working`, `analyzing`,
+`alarmed`, `coffee`, `break`) and activity directly, plus opt-in sound and volume.
+Coffee has a steaming mug and occasional sips; working has irregular keyboard
+typing; analyzing uses a magnifier and decorative chart; break has cigarette
+draws/exhalation with pooled smoke. Siren, sip, and keypress sounds play from the
+lab tab; sip/keypress signals come from scene animation. A procedural room, city,
+plants, sofa, rug, lighting/haze, racks, and console surround the fly. They are
+decorative, not mapped monitored resources. Event injection, general priority
+arbitration, walking/full action sequences, and resource effects remain pending.
+Live mode uses host telemetry; manual lab mode overrides graphics
 without stopping the data subscription. BroadcastChannel state
 is transient and same-origin; do not assume durable synchronization across page
 reloads or independent browser profiles.
@@ -65,9 +73,9 @@ Use lightweight Feature-Sliced Design (FSD):
 
 - `app`: routing, global styles, composition.
 - `pages`: dashboard (`/`), brain inspector (`/brain`), visual laboratory (`/lab`).
-- `widgets`: world scene, debug panel, future brain monitor.
-- `features`: fly behavior, presentation rules, debug controls.
-- `entities`: fly, future world objects and neural network models.
+- `widgets`: world scene and occlusion handling; dedicated debug/brain-monitor widgets remain future extractions.
+- `features`: presentation rules, debug controls, host connection, presentation sound; extract a fly-behavior controller only when needed.
+- `entities`: fly and procedural world objects; detailed neural network models remain future work.
 - `shared`: transport, protocol validation, utilities, UI primitives.
 
 Dependencies point downward; sibling entities do not import one another.
@@ -80,8 +88,11 @@ registered with ordinary TypeScript factories at build time.
 `host message -> validation/adapter -> application event -> presentation rules
 -> fly controller and world effects`.
 
-Currently the fly accepts mode, behavior, and activity through a basic update
-function. As behaviors grow, add explicit attention, gesture, and sequence controls
+Currently `createFly(onCoffeeSip?, onKeyPress?)` returns a root and an
+`update(timeSeconds, state)` function accepting mode, behavior, and activity.
+Behavior-specific accumulated clocks and fixed-length front-limb posing are
+implemented; a general transition/priority controller is not. As behaviors grow,
+add explicit attention, gesture, and sequence controls
 through a focused controller that arbitrates priorities and prevents conflicting
 animations. Urgent behavior should interrupt idle sequences. General sequencing
 and arbitration are not implemented yet. Repeated events need coalescing/cooldowns
@@ -90,7 +101,7 @@ Backend observations and brain reactions remain distinguishable: an unhealthy
 resource must not appear healthy merely because the brain has not reacted.
 Disconnection is distinct from health; silence does not imply normal operation.
 
-Start with built-in behaviors such as idle, working, alarmed, coffee, and break.
+Use the built-in idle, working, analyzing, alarmed, coffee, and break previews.
 Configuration handles simple mappings, colors, and thresholds. Use TypeScript
 for complex sequences rather than inventing a general-purpose JSON language.
 
@@ -177,12 +188,13 @@ independent. `brain` is still experimental, not a production environment mode.
 6. Real brain telemetry and inspection, starting with aggregates and selections.
 7. Additional props, environment objects, behavior sequences, effects and sound.
 
-Milestone 5 is being delivered in reviewable stages: (a) unified HTTP/backend
-lifetime and continuous test execution (implemented), (b) controlled external
-HTTP service and sensor (implemented), (c) minimal real host API/stream and live
-frontend reaction (implemented), (d) one environment object and effects. Stop at each requested review boundary so the user
+Milestone 5 has implemented unified HTTP/backend lifetime, the controlled HTTP
+service/sensor, the real host API/stream, and live fly reactions. Decorative world
+objects are present, but a scene object bound to an observed entity and its
+resource-state effects are still pending. Stop at each requested review boundary so the user
 can inspect, run, and commit the changes. Do not commit without explicit permission.
 
-Milestones 1–4 are complete. Brain overview telemetry is real; detailed inspection,
-environment objects, actual incident detection, and advanced character animation
-belong to later milestones.
+Milestones 1–4 are complete. Milestone 6 has real brain aggregates but no detailed
+inspection. Milestone 7 has procedural environment objects, behavior-specific
+props/animation, alarm effects, and sound; general sequencing and monitored-world
+effects remain future work. Actual incident detection is still a backend goal.

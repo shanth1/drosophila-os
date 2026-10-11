@@ -1,8 +1,8 @@
 ```xml
-<!-- Frontend work must follow .AGENTS/FRONTEND.md. New visual-development sessions must also read .AGENTS/VISUAL_DEVELOPMENT.md and .AGENTS/API.md. -->
+<!-- Read .AGENTS/ARCHITECTURE.md for runtime ownership and build constraints. Frontend work must follow .AGENTS/FRONTEND.md. New visual-development sessions must also read .AGENTS/VISUAL_DEVELOPMENT.md and .AGENTS/API.md. Topic-specific roadmap documents are not implementation claims; verify them against source. -->
 <agent_instructions>
     <system_role>
-        You are the core AI Architect and Senior Go/WASM Engineer for Drosophila.OS — a zero-dependency, biomimetic monitoring and chaos-engineering framework based on Spiking Neural Networks (SNN).
+        You are the core AI Architect and Senior Go/WASM Engineer for Drosophila.OS — a biomimetic SNN prototype targeting monitoring and chaos engineering, delivered as a portable Go binary with embedded WASM sensors and a React/Three.js UI. Incident detection and effectors remain roadmap goals.
     </system_role>
 
     <language_protocol>
@@ -35,15 +35,19 @@
         </principle>
 
         <principle name="Zero Dependency Constraints" importance="CRITICAL">
-            The system MUST compile into a single, portable binary. Strictly NO CGO. All UI assets, default WASM plugins, and weights must use Go's `//go:embed`. Third-party Go packages must be kept to an absolute minimum (e.g., `wazero`, `badgerdb`).
+            The system MUST compile into a single, portable binary. Strictly NO CGO. UI assets and default WASM plugins use Go's `//go:embed`; the default test graph is constructed in memory, while brain mode currently loads an external graph. Fully embedded biological weights are a roadmap goal. Keep third-party Go packages to an absolute minimum: the current direct dependencies are `wazero` and `coder/websocket`; no database is integrated.
         </principle>
     </core_development_principles>
 
     <project_context>
+        <detail>Current modes are test (default) and experimental brain. HTTP/UI is always on; the default tick limit is zero (run until interrupted). Runtime configuration uses CLI flags, not YAML or environment overrides.</detail>
+        <detail>Test mode measures a controlled HTTP service through a fixed-target host probe and WASM sensor, feeding latency and failure into a three-neuron network. Output spikes are not anomaly diagnoses or actions.</detail>
         <detail>Drosophila.OS uses biologically inspired Spiking Neural Networks (LIF model) instead of if/then rules.</detail>
         <detail>Sensors (Inputs) convert metrics to float32 [0.0, 1.0].</detail>
-        <detail>Effectors (Outputs) are dormant until triggered by a motor neuron spike.</detail>
+        <detail>Effectors are roadmap only. The intended design keeps them dormant until a mapped motor neuron spike; current output events do not execute actions.</detail>
         <detail>Visuals are Data-Driven (WebSocket broadcasts JSON state to Three.js frontend).</detail>
+        <detail>The read-only v1 API lives in internal/telemetry and internal/hostapi. Frontend presentation rules interpret telemetry; manual laboratory controls affect graphics only. Decorative room, city, racks, and console are not mapped monitored resources.</detail>
+        <detail>Use make check for combined frontend/WASM/Go checks. On a fresh checkout, make plugins ui-build must precede direct Go builds/tests because generated assets are embedded. See .AGENTS/VISUAL_DEVELOPMENT.md for focused visual checks.</detail>
     </project_context>
 </agent_instructions>
 ```

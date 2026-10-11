@@ -29,9 +29,12 @@ The default test runtime is self-contained: all three WASM sensors are embedded 
 is constructed in memory. Brain mode still uses an external graph and the UI
 has an embedded procedural fly and cross-tab laboratory, with live host overview
 telemetry through HTTP/WebSocket (see `FRONTEND.md` and `API.md`). The host
-uses Go modules, including `wazero`; zero dependencies does not mean no Go libraries.
+uses `wazero` and `github.com/coder/websocket` as direct Go dependencies; zero
+runtime dependencies does not mean no build-time libraries. Go 1.25.5+, Make,
+Node.js 22.12+ (or compatible newer Node), and npm are build requirements.
 *   **Strictly NO CGO:** Cross-compilation (Linux/Windows/macOS/ARM) must work out of the box.
-*   **Embedded Assets:** All WASM plugins, 3D UI assets (Three.js), and `.bin` weights MUST be baked into the binary using Go's `//go:embed`.
+*   **Embedded Assets:** Default WASM sensors and built UI assets (including Three.js) use `//go:embed`. The test graph is in memory; embedding biological `.bin` weights is a future distribution goal, not the current brain-mode behavior.
+*   **Build Order:** `make build` builds sensors and UI before the host; `make check` also runs frontend tests, Go tests, and `go vet`. Before direct Go builds/tests on a fresh checkout, run `make plugins ui-build`. WASM guests are WASI reactors built with `-buildmode=c-shared`.
 
 ## 4. The SNN Engine (Data-Oriented Brain)
 Command entrypoints under `cmd/` only handle process/CLI concerns. `internal/app`
@@ -47,7 +50,11 @@ snapshots. Slow clients have bounded queues and never block engine ticks. API
 handlers do not read mutable neural arrays. The small pure-Go WebSocket dependency
 is `github.com/coder/websocket`.
 
-The engine abandons OOP (no Interface graphs) in favor of Data-Oriented Design (DoD). Memory consists of flat `Voltages`, `Thresholds`, and `Weights` arrays to maximize CPU L1/L2 cache hits during the high-frequency matrix multiplications.
+The engine uses Data-Oriented Design (DoD), not object/interface graphs. Neuron
+state lives in separate `Voltages`, `PendingVoltages`, `Thresholds`, `DecayRates`, and `Fired` arrays;
+outgoing connections use CSR `Offsets`, `Targets`, and `Weights`. Ticks apply
+leak/input/threshold checks and propagate firing neurons' weights into pending
+inputs for the next tick, not dense matrix multiplication.
 
 ### 4.1. Temporal Decoupling (The Two Clocks)
 These independent clocks apply to both modes. The default test runtime uses

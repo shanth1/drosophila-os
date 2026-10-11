@@ -97,6 +97,10 @@ output events trigger a 1.5s alert gesture, with no replay on snapshots. Manual
 lab behavior overrides graphics while telemetry continues. Disconnection does
 not represent healthy operation; live motion returns to neutral and UI labels
 the connection state. Raw HTTP response state is displayed independently.
+The room, city, plants, sofa, server racks, and console are decorative scene
+objects, not visual adapters bound to API entity IDs. Their displays do not report
+host measurements. Analyzing/coffee/break previews and sound are frontend-only;
+do not add artistic commands or mood fields to the host contract for them.
 
 `/brain` currently shows real overview counters and generic module descriptions;
 it has no anatomical layout, raster plots, or detailed neuron inspection yet.

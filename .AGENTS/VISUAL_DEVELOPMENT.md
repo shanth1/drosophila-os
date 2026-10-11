@@ -16,8 +16,9 @@ the repository are required. Generated dependencies/assets are recreated by Make
 
 This milestone is a working development foundation. It does not implement
 production incident detection, rollback, effectors, chaos engineering, or a
-calibrated biological model. Surrounding server/plant/room models and advanced
-character behavior are the next visual work, not prerequisites for starting it.
+calibrated biological model. Surrounding room/city/plant/server models and
+behavior-specific props/animation are implemented. Monitored-resource bindings,
+general action sequencing, and additional effects remain future visual work.
 
 ## Product decisions that must survive the session boundary
 
@@ -91,7 +92,14 @@ Its embedded UI is the last build, not live source; rebuild for release checks.
 | `ui/src/entities/fly/analysisProps.ts` | Fly-owned magnifying glass and decorative chart, inspection motion and grip targets |
 | `ui/src/entities/fly/smokingBreak.ts` | Cigarette, ember, smoke wisps, pooled exhalation puffs, and draw/exhale timing |
 | `ui/src/features/presentation-sound/SoundControls.tsx` | Lab-wide volume/mute, siren synthesis, sip and keyboard sound playback |
-| `ui/src/widgets/world-scene/WorldScene.tsx` | Camera, floor/grid, lights, render loop, cleanup |
+| `ui/src/widgets/world-scene/WorldScene.tsx` | World composition, camera, lights, bloom/output passes, render loop, cleanup |
+| `ui/src/widgets/world-scene/occlusion.ts` | Camera-to-target occlusion fading with isolated material clones |
+| `ui/src/entities/room/model.ts`, `rug.ts` | Procedural room backdrop and textured rug |
+| `ui/src/entities/city-backdrop/` | Skyline/sky factory, theme/state contract, extension notes |
+| `ui/src/entities/plants/model.ts`, `sofa/model.ts` | Decorative plants and sofa |
+| `ui/src/entities/lighting/model.ts`, `atmosphere/model.ts` | Decorative lighting and atmospheric haze |
+| `ui/src/entities/server-racks/model.ts`, `control-console/model.ts` | Decorative infrastructure geometry and animated displays |
+| `ui/src/entities/fly/model.test.ts` | Sip/typing signal timing and smoking pose checks |
 | `ui/src/features/presentation-rules/liveFly.ts` | Live/manual resolution and artistic mappings |
 | `ui/src/features/presentation-rules/liveFly.test.ts` | Override, disconnect, gesture expiry checks |
 | `ui/src/features/debug-controls/channel.ts` | Presentation-only BroadcastChannel |
@@ -107,7 +115,8 @@ Its embedded UI is the last build, not live source; rebuild for release checks.
 
 `FlyState` currently contains `mode: live | manual`, a `behavior`, and normalized
 `activity`. Behaviors are `idle`, `working`, `analyzing`, `alarmed`, `coffee`, and `break`.
-`createFly()` returns `{root, update(timeSeconds, state)}`. Three.js supplies
+`createFly(onCoffeeSip?, onKeyPress?)` returns `{root, update(timeSeconds, state)}`.
+Optional callbacks synchronize presentation sounds with animation. Three.js supplies
 elapsed animation-loop seconds; this is not the host tick or an action-start time.
 The floor lies in XZ, Y is up, and the fly faces roughly negative Z.
 
@@ -166,9 +175,15 @@ Sound plays from the laboratory tab only
 after the user enables it and fades out when the alarm ends. Keep that tab open
 when previewing the dashboard.
 
-The scene currently contains the fly, a floor, and a grid. No server, plant,
-room, world smoke/fire particles, or speech system is implemented. The cigarette
-and its mesh-based smoke belong to the fly's break prop.
+The scene contains the fly, floor/grid, a procedural room, evening city backdrop,
+plants, sofa, rug, decorative lights/haze, server racks, and control console.
+Racks/console animate decorative displays independently of telemetry. The world
+widget owns bloom/output postprocessing and fades selected foreground objects
+when they occlude the camera target. The city exposes theme/state setters and an
+`airspace` group, but no day/night controller or aircraft is wired into the scene.
+See `entities/city-backdrop/README.md` for its extension boundary. No monitored
+resource bindings, resource smoke/fire, or speech system are implemented. The
+cigarette and its mesh-based smoke belong to the fly's break prop.
 Routing uses pathname checks and ordinary links, not React Router. Adding a new
 page requires updating both frontend routing and `ui/embed.go`/route checks.
 
@@ -218,10 +233,12 @@ or disconnected resource is not displayed as confirmed healthy.
 
 Keep scene instances stable across telemetry updates and update their parameters
 instead of recreating geometry. Extend cleanup for any new textures, particle
-objects, render targets, timers, or audio resources. Current cleanup handles mesh
-and line geometry/materials; it does not automatically cover future textures or
-Points effects. Account for React StrictMode mount/unmount and repeated HMR.
-Future sound should use a visible mute control and browser user-gesture activation.
+objects, render targets, timers, or audio resources. Current cleanup handles
+deduplicated mesh/line geometry/materials, instanced meshes, light shadows,
+MeshStandardMaterial bump maps, postprocessing resources, and occlusion state.
+It does not automatically cover arbitrary new texture slots or Points effects.
+Account for React StrictMode mount/unmount and repeated HMR. Extend the existing
+lab sound controls with visible mute/volume and browser user-gesture activation.
 Package assets locally; production must not require a CDN.
 
 ## Reproduce real reactions
@@ -258,11 +275,10 @@ On a fresh checkout, `make plugins ui-build` must precede direct Go tests becaus
 generated files are embedded. `testdata/telemetry-v1.json` is a shared Go/TypeScript
 wire fixture, not a mock server. Do not change it merely to add a fly emotion.
 
-The baseline passed `make check` and an actual frontend-client smoke check through
-the Go host and Vite proxy, including restart/reconnection. That smoke script was
-temporary, not a repository test or required tool. Browser appearance is reviewed
-by the user; do not claim visual verification from transport tests. The initial
-Chromium download was unavailable, and the user explicitly accepts manual feedback.
+Report checks actually run in the current session. Frontend tests cover protocol,
+presentation rules, and fly animation/sound timing; they do not verify browser
+appearance. Use available browser tooling or user visual feedback for appearance
+review, and do not treat historical temporary smoke scripts as repository tools.
 
 Suggested visual verification: orbit/zoom, resize, switch all manual behaviors,
 check live/manual precedence under 503 responses, restore 200, test disconnect,

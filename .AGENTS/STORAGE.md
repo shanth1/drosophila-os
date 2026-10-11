@@ -1,9 +1,15 @@
 # STORAGE: State Management, Memory & Snapshots
 
-Status: roadmap except for the engine's in-memory SoA/CSR arrays. BadgerDB,
-trace logs, snapshots, telemetry persistence, and learned-weight saving are
-not implemented; empty storage placeholders have been removed. The current
-input buffer is a latest-value mailbox, not the proposed trace ring buffer.
+Status: persistent storage roadmap. Engine SoA/CSR arrays, binary graph import/
+loading, and immutable in-memory telemetry snapshots are implemented. BadgerDB,
+trace logs, historical brain snapshots, telemetry persistence, and learned-weight
+saving are not implemented; no storage package or database is integrated. The
+current input buffer is a latest-value mailbox, not the proposed trace ring buffer.
+
+`internal/telemetry` retains current serialized overview state and bounded live
+subscriptions, not a durable journal. `/api/v1/snapshot` is an overview baseline
+for clients, not a brain checkpoint or learning snapshot. `internal/malecns`
+atomically writes imported `.bin` graphs; this is not learned-weight persistence.
 
 ## 1. Storage Philosophy: RAM vs Disk
 Drosophila.OS targets ticks every ~10ms and keeps hot data (neuron potentials) in RAM. The roadmap proposes offloading historical/persistent data to a write-optimized database (`BadgerDB`); the current host does not persist this history.
